@@ -1,9 +1,12 @@
+import os
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.sim import UsdFileCfg
 
-USD_PATH = "/workspace/isaaclab/scripts/demos/biped.usd"
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+USD_PATH = os.path.join(CURRENT_DIR, "biped.usd")
 
 BIPED_CFG = ArticulationCfg(
     spawn=UsdFileCfg(
