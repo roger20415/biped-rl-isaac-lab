@@ -23,8 +23,16 @@ from . import mdp
 # Pre-defined configs
 ##
 
-from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
+from isaaclab_tasks.manager_based.biped_rl.assets.biped_config import BIPED_CFG  # isort:skip
 
+
+JOINT_NAMES: list[str] = ["back", "sacrum",
+                     "l_hip", "l_thigh",
+                     "l_calf", "l_ankle",
+                     "l_foot",
+                     "r_hip", "r_thigh",
+                     "r_calf", "r_ankle",
+                     "r_foot"]
 
 ##
 # Scene definition
@@ -33,7 +41,7 @@ from isaaclab_assets.robots.cartpole import CARTPOLE_CFG  # isort:skip
 
 @configclass
 class BipedRlSceneCfg(InteractiveSceneCfg):
-    """Configuration for a cart-pole scene."""
+    """Configuration for a biped robot scene."""
 
     # ground plane
     ground = AssetBaseCfg(
@@ -42,8 +50,8 @@ class BipedRlSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-
+    robot: ArticulationCfg = BIPED_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+   
     # lights
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
@@ -60,7 +68,10 @@ class BipedRlSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=["slider_to_cart"], scale=100.0)
+    joint_position = mdp.JointPositionActionCfg(
+        asset_name="robot", 
+        joint_names=JOINT_NAMES,
+        scale=1.0)  
 
 
 @configclass
@@ -88,23 +99,13 @@ class EventCfg:
     """Configuration for events."""
 
     # reset
-    reset_cart_position = EventTerm(
+    reset_biped_position = EventTerm(
         func=mdp.reset_joints_by_offset,
         mode="reset",
         params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]),
-            "position_range": (-1.0, 1.0),
-            "velocity_range": (-0.5, 0.5),
-        },
-    )
-
-    reset_pole_position = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]),
-            "position_range": (-0.25 * math.pi, 0.25 * math.pi),
-            "velocity_range": (-0.25 * math.pi, 0.25 * math.pi),
+            "asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES),
+            "position_range": (-0.0, 0.0),
+            "velocity_range": (-0.0, 0.0),
         },
     )
 
@@ -121,19 +122,19 @@ class RewardsCfg:
     pole_pos = RewTerm(
         func=mdp.joint_pos_target_l2,
         weight=-1.0,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"]), "target": 0.0},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES), "target": 0.0},
     )
     # (4) Shaping tasks: lower cart velocity
     cart_vel = RewTerm(
         func=mdp.joint_vel_l1,
         weight=-0.01,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"])},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)},
     )
     # (5) Shaping tasks: lower pole angular velocity
     pole_vel = RewTerm(
         func=mdp.joint_vel_l1,
         weight=-0.005,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["cart_to_pole"])},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES)},
     )
 
 
@@ -146,7 +147,7 @@ class TerminationsCfg:
     # (2) Cart out of bounds
     cart_out_of_bounds = DoneTerm(
         func=mdp.joint_pos_out_of_manual_limit,
-        params={"asset_cfg": SceneEntityCfg("robot", joint_names=["slider_to_cart"]), "bounds": (-3.0, 3.0)},
+        params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINT_NAMES), "bounds": (-3.0, 3.0)},
     )
 
 
@@ -158,7 +159,7 @@ class TerminationsCfg:
 @configclass
 class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=4096, env_spacing=4.0)
+    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=9, env_spacing=4.0)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
