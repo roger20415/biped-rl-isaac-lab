@@ -16,11 +16,31 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def joint_pos_target_l2(env: ManagerBasedRLEnv, target: float, asset_cfg: SceneEntityCfg) -> torch.Tensor:
-    """Penalize joint position deviation from a target value."""
-    # extract the used quantities (to enable type-hinting)
-    asset: Articulation = env.scene[asset_cfg.name]
-    # wrap the joint positions to (-pi, pi)
-    joint_pos = wrap_to_pi(asset.data.joint_pos[:, asset_cfg.joint_ids])
-    # compute the reward
-    return torch.sum(torch.square(joint_pos - target), dim=1)
+import torch
+
+import torch
+from isaaclab.managers import SceneEntityCfg
+from isaaclab.envs import ManagerBasedRLEnv
+
+def forward_velocity_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg,
+                     nowhere_penalty_weight: float = 0.2) -> torch.Tensor:
+    
+    asset = env.scene[asset_cfg.name]
+    body_id = asset_cfg.body_ids[0]
+    current_base_x = asset.data.body_pos_w[:, body_id, 0]
+
+    if "prev_base_x" not in env.extras:
+        env.extras["prev_base_x"] = current_base_x.clone()
+
+    reset_env_ids = env.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+
+    if len(reset_env_ids) > 0:
+        env.extras["prev_base_x"][reset_env_ids] = current_base_x[reset_env_ids]
+
+    delta_x = current_base_x - env.extras["prev_base_x"]
+
+    forward_reward = delta_x - nowhere_penalty_weight
+
+    env.extras["prev_base_x"].copy_(current_base_x)
+
+    return forward_reward
