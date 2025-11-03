@@ -13,7 +13,10 @@ learning_rate: !!float 3e-4
 clip_range: !!float 0.2
 policy_kwargs:
   activation_fn: 'nn.ELU'
-  net_arch: [32, 32]
+  #net_arch: [32, 32]
+  net_arch:
+    pi: [64, 64]  # policy
+    vf: [128, 128] # critic
   squash_output: False
                 
 vf_coef: 1.0
