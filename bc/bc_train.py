@@ -1,0 +1,200 @@
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import Dataset, DataLoader
+import numpy as np
+import os
+# --- [NEW] ---
+from sklearn.model_selection import train_test_split
+
+ACTIVATION_FNS = {
+    'nn.ELU': nn.ELU,
+    'nn.ReLU': nn.ReLU,
+    'nn.Tanh': nn.Tanh,
+}
+
+class ActorBC(nn.Module):
+    def __init__(self, obs_dim, act_dim, 
+                 net_arch_pi=[64, 64], 
+                 activation_fn_str='nn.ELU'):
+        
+        super(ActorBC, self).__init__()
+        
+        try:
+            activation_fn = ACTIVATION_FNS[activation_fn_str]
+        except KeyError:
+            raise ValueError(f"Unknown activation function: {activation_fn_str}")
+
+        # --- 1. Build "Body" (corresponding to mlp_extractor.policy_net) ---
+        policy_net_layers = []
+        last_dim = obs_dim
+        
+        for layer_dim in net_arch_pi:
+            policy_net_layers.append(nn.Linear(last_dim, layer_dim))
+            policy_net_layers.append(activation_fn())
+            last_dim = layer_dim
+        self.policy_net = nn.Sequential(*policy_net_layers)
+
+        # --- 2. Build "Head" (corresponding to action_net) ---
+        self.action_net = nn.Linear(last_dim, act_dim)
+        print(f"--- ActorBC Model Initialized ---")
+        print(f"Body (policy_net):\n{self.policy_net}")
+        print(f"Head (action_net):\n{self.action_net}")
+        print("---------------------------------")
+
+    def forward(self, obs):
+        features = self.policy_net(obs)
+        mean = self.action_net(features)
+        return mean
+
+# --- 1. Expert Dataset ---
+class ExpertDataset(Dataset):
+    def __init__(self, observations, actions):
+        self.observations = observations
+        self.actions = actions
+
+    def __len__(self):
+        return len(self.observations)
+
+    def __getitem__(self, idx):
+        return self.observations[idx], self.actions[idx]
+
+# --- 2. Generate Mock Expert Data ---
+def generate_mock_data(filepath, n_samples, obs_dim, act_dim):
+    if not os.path.exists(filepath):
+        print(f"Generating mock expert data ( {n_samples} samples)...")
+        mock_obs = np.random.rand(n_samples, obs_dim).astype(np.float32)
+        # Simulate a simple linear policy
+        mock_acts = mock_obs[:, 0:act_dim] * 0.5 + 0.2
+        np.savez(filepath, obs=mock_obs, actions=mock_acts)
+        print(f"Mock data saved to {filepath}")
+
+if __name__ == "__main__":
+    # must match rl env cfg
+    OBS_DIM = 33
+    ACT_DIM = 11
+    
+    # must match rl yaml
+    NET_ARCH_PI = [64, 64]
+    ACTIVATION_FN = 'nn.ELU'
+    SQUASH_OUTPUT = False
+    
+    # hyperparameters
+    LEARNING_RATE = 1e-3
+    BATCH_SIZE = 64
+    EPOCHS = 50
+    VALIDATION_SPLIT = 0.05
+    RANDOM_SEED = 42
+
+    try:
+        script_dir = os.path.abspath(os.path.dirname(__file__))
+    except NameError:
+        print("Warning: __file__ not defined. Saving to current working directory.")
+        script_dir = os.getcwd()
+
+    # file paths
+    EXPERT_DATA_PATH = os.path.join(script_dir, "expert_data.npz")
+    BODY_WEIGHTS_PATH = os.path.join(script_dir, "bc_actor_body_weights.pth")
+    HEAD_WEIGHTS_PATH = os.path.join(script_dir, "bc_actor_head_weights.pth")
+
+    generate_mock_data(EXPERT_DATA_PATH, n_samples=5000, obs_dim=OBS_DIM, act_dim=ACT_DIM)
+
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"using: {DEVICE}")
+
+    # --- 1. Load, Split, and Setup DataLoaders ---
+    try:
+        data = np.load(EXPERT_DATA_PATH)
+        all_obs = torch.from_numpy(data['obs']).float()
+        all_actions = torch.from_numpy(data['actions']).float()
+        print(f"Successfully loaded expert data: {all_obs.shape[0]} total samples")
+    except FileNotFoundError:
+        print(f"Error: Expert data file not found {EXPERT_DATA_PATH}")
+        exit()
+    except Exception as e:
+        print(f"Error occurred while loading expert data: {e}")
+        exit()
+
+    obs_train, obs_val, act_train, act_val = train_test_split(
+        all_obs, 
+        all_actions, 
+        test_size=VALIDATION_SPLIT, 
+        random_state=RANDOM_SEED
+    )
+    print(f"Data split: {len(obs_train)} train samples, {len(obs_val)} validation samples")
+
+    # Create two datasets and two dataloaders
+    train_dataset = ExpertDataset(obs_train, act_train)
+    val_dataset = ExpertDataset(obs_val, act_val)
+    
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    
+    # 1. Model setup (no change)
+    model = ActorBC(
+        obs_dim=OBS_DIM,
+        act_dim=ACT_DIM,
+        net_arch_pi=NET_ARCH_PI,
+        activation_fn_str=ACTIVATION_FN
+    ).to(DEVICE)
+    
+    criterion = nn.MSELoss()
+    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+
+    # 2. Training loop
+    print(f"--- Start Behavior Cloning ({EPOCHS} Epochs) ---")
+    
+    for epoch in range(EPOCHS):
+        
+        # --- Training Phase ---
+        model.train()
+        total_train_loss = 0
+        for obs_batch, act_batch in train_loader:
+            obs_batch = obs_batch.to(DEVICE)
+            act_batch = act_batch.to(DEVICE)
+            
+            # Forward pass
+            pred_act_mean = model(obs_batch)
+            loss = criterion(pred_act_mean, act_batch)
+
+            # Backward pass and optimization
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            
+            total_train_loss += loss.item()
+            
+        avg_train_loss = total_train_loss / len(train_loader)
+
+        model.eval()
+        total_val_loss = 0
+        with torch.no_grad():
+            for obs_batch, act_batch in val_loader:
+                obs_batch = obs_batch.to(DEVICE)
+                act_batch = act_batch.to(DEVICE)
+                
+                pred_act_mean = model(obs_batch)
+                val_loss = criterion(pred_act_mean, act_batch)
+                total_val_loss += val_loss.item()
+                
+        avg_val_loss = total_val_loss / len(val_loader)
+        
+        if (epoch + 1) % 5 == 0 or epoch == 0:
+            print(f"Epoch [{epoch+1}/{EPOCHS}], Train Loss: {avg_train_loss:.6f}, Val Loss: {avg_val_loss:.6f}")
+
+    print("--- Training finish ---")
+
+    # 3. Save weights
+    model.eval()
+
+    try:
+        print(f"Saving body weights: {BODY_WEIGHTS_PATH}")
+        torch.save(model.policy_net.state_dict(), BODY_WEIGHTS_PATH)
+        
+        print(f"Saving head weights: {HEAD_WEIGHTS_PATH}")
+        torch.save(model.action_net.state_dict(), HEAD_WEIGHTS_PATH)
+
+        print("--- Weights saved successfully ---")
+
+    except Exception as e:
+        print(f"Error occurred while saving weights: {e}")
