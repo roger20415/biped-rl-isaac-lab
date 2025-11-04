@@ -101,8 +101,8 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
-DUMMY_BODY_WEIGHTS_PATH = "dummy_body_weights.pth"
-DUMMY_HEAD_WEIGHTS_PATH = "dummy_head_weights.pth"
+DUMMY_BODY_WEIGHTS_PATH = "./bc/bc_actor_body_weights.pth"
+DUMMY_HEAD_WEIGHTS_PATH = "./bc/bc_actor_head_weights.pth"
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)
@@ -202,53 +202,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
     if args_cli.checkpoint is not None:
         agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
-
-    print("--- [INFO] Starting Weight Injection Pipeline Self-Test ---")
     try:
-        # --- Step A: Get Sub-networks ---
-        print(f"[TEST] 1/5: Accessing agent.policy.mlp_extractor.policy_net...")
         actor_body_net = agent.policy.mlp_extractor.policy_net
-        
-        print(f"[TEST] 1/5: Accessing agent.policy.action_net...")
         actor_head_net = agent.policy.action_net
-        print("         ...Sub-network access successful! Paths are correct.")
 
-        # --- Step B: Save Dummy Weights ---
-        print(f"[TEST] 2/5: Saving (random) weights to {DUMMY_BODY_WEIGHTS_PATH}...")
-        torch.save(actor_body_net.state_dict(), DUMMY_BODY_WEIGHTS_PATH)
-        
-        print(f"[TEST] 2/5: Saving (random) weights to {DUMMY_HEAD_WEIGHTS_PATH}...")
-        torch.save(actor_head_net.state_dict(), DUMMY_HEAD_WEIGHTS_PATH)
-        print("         ...Dummy weights saved successfully!")
-
-        # --- Step C: Load Dummy Weights ---
-        print(f"[TEST] 3/5: Loading weights from {DUMMY_BODY_WEIGHTS_PATH}...")
         body_weights = torch.load(DUMMY_BODY_WEIGHTS_PATH, map_location=agent.device)
-        
-        print(f"[TEST] 3/5: Loading weights from {DUMMY_HEAD_WEIGHTS_PATH}...")
         head_weights = torch.load(DUMMY_HEAD_WEIGHTS_PATH, map_location=agent.device)
-        print("         ...Dummy weights loaded successfully!")
 
-        # --- Step D: Inject Dummy Weights ---
-        print(f"[TEST] 4/5: Injecting weights back into agent...")
         actor_body_net.load_state_dict(body_weights)
         actor_head_net.load_state_dict(head_weights)
-        print("         ...Weight injection (load_state_dict) successful!")
-        
-        # --- Step E: Cleanup (Optional) ---
-        print(f"[TEST] 5/5: Cleaning up dummy files...")
-        os.remove(DUMMY_BODY_WEIGHTS_PATH)
-        os.remove(DUMMY_HEAD_WEIGHTS_PATH)
-        print("         ...Cleanup complete.")
-
-        print("==========================================================")
-        print(" Test PASSED! Weight Injection Pipeline is operational.")
-        print("   Your YAML architecture and Python script (paths) are matching.")
-        print("==========================================================")
     
     except AttributeError as e:
         print("==========================================================")
-        print(f" Test FAILED: AttributeError: {e}")
+        print(f" FAILED: AttributeError: {e}")
         print("   This likely means your YAML file configuration is incorrect.")
         print("   Please ensure your YAML file is using 'separate networks':")
         print("   net_arch:")
@@ -256,7 +222,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("     vf: [..., ...]")
         print("==========================================================")
     except Exception as e:
-        print(f"--- [ERROR] Pipeline test failed: {e} ---")
+        print(f"--- [ERROR] Inject Behavior cloning pipeline failed: {e} ---")
 
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
