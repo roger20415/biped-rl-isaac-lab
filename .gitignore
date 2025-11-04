@@ -69,3 +69,7 @@ tests/
 
 # Docker history
 .isaac-lab-docker-history
+
+# Machine learning model files
+*.pth
+*.npz
