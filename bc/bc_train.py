@@ -4,7 +4,6 @@ import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 import os
-# --- [NEW] ---
 from sklearn.model_selection import train_test_split
 
 ACTIVATION_FNS = {
@@ -71,7 +70,7 @@ def generate_mock_data(filepath, n_samples, obs_dim, act_dim):
 
 if __name__ == "__main__":
     # must match rl env cfg
-    OBS_DIM = 33
+    OBS_DIM = 34
     ACT_DIM = 11
     
     # must match rl yaml
@@ -82,7 +81,7 @@ if __name__ == "__main__":
     # hyperparameters
     LEARNING_RATE = 1e-3
     BATCH_SIZE = 64
-    EPOCHS = 50
+    EPOCHS = 500
     VALIDATION_SPLIT = 0.05
     RANDOM_SEED = 42
 
@@ -93,7 +92,7 @@ if __name__ == "__main__":
         script_dir = os.getcwd()
 
     # file paths
-    EXPERT_DATA_PATH = os.path.join(script_dir, "expert_data.npz")
+    EXPERT_DATA_PATH = os.path.join(script_dir, "expert_data_train.npz")
     BODY_WEIGHTS_PATH = os.path.join(script_dir, "bc_actor_body_weights.pth")
     HEAD_WEIGHTS_PATH = os.path.join(script_dir, "bc_actor_head_weights.pth")
 
