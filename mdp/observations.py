@@ -35,7 +35,7 @@ def get_euler_W_xy(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.T
     euler = quat_to_euler_xyz(quat)
     return euler[:, :2]  # roll, pitch
 
-def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshold: float = 0.00125) -> torch.Tensor:
+def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshold: float = 0.0014) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
     body_ids = asset_cfg.body_ids
     z = asset.data.body_pos_w[:, body_ids, 2]  
