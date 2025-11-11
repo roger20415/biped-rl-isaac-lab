@@ -69,7 +69,7 @@ def preprocess_actions(act_data: np.ndarray,
     # Clip actions to [-1, 1]
     over_limit = np.sum(np.abs(action_norm_target) > 1.0)
     total_elements = action_norm_target.size
-    print(f"[Act] {over_limit / total_elements * 100:.2f}% of action values were clipped.")
+    print(f"[Act] {over_limit / total_elements * 100:.5f}% of action values were clipped.")
     action_norm_target_clipped = np.clip(action_norm_target, -1.0, 1.0)
     
     print(f"[Act] Normalization complete.")
