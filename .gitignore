@@ -73,3 +73,5 @@ tests/
 # Machine learning model files
 *.pth
 *.npz
+*.npy
+*.etli

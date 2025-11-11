@@ -115,7 +115,7 @@ if __name__ == "__main__":
     val_dataset = ExpertDataset(obs_val, act_val)
     
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True)
     
     # 1. Model setup (no change)
     model = ActorBC(

@@ -73,6 +73,7 @@ def preprocess_actions(act_data: np.ndarray,
     action_norm_target_clipped = np.clip(action_norm_target, -1.0, 1.0)
     
     print(f"[Act] Normalization complete.")
+    np.save("./data/action_scales.npy", scale)
     return action_norm_target_clipped.astype(np.float32)
 
 def main():
