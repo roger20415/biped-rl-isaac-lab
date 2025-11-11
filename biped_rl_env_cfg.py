@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import math
-import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
@@ -34,6 +33,7 @@ JOINTS: list[str] = ["sacrum","l_hip", "l_thigh",
                      "r_calf", "r_ankle",
                      "r_foot"]
 REVOLUTE_JOINTS: list[str] = JOINTS[1:]  # exclude sacrum
+FOOT_CONTACT_THRESHOLD: float = 0.0014  # meters
 
 ##
 # Scene definition
@@ -92,7 +92,7 @@ class ObservationsCfg:
         baselink_W_euler_xy = ObsTerm(
             func=mdp.get_euler_W_xy,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["base_link"])})
-        base_lin_vel = ObsTerm(func=mdp.root_lin_vel_w)
+        baselink_lin_vel = ObsTerm(func=mdp.root_lin_vel_w)
         baselink_ang_vel = ObsTerm(func=mdp.root_ang_vel_w)
         joint_pos = ObsTerm(
             func=mdp.joint_pos_rel,
@@ -105,11 +105,11 @@ class ObservationsCfg:
 
         l_foot_contact = ObsTerm(
             func=mdp.has_foot_contact,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["l_foot_1"])}
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=["l_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
         r_foot_contact = ObsTerm(
             func=mdp.has_foot_contact,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"])}
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
 
         def __post_init__(self) -> None:
