@@ -226,7 +226,7 @@ class TerminationsCfg:
 @configclass
 class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=1, env_spacing=0.2)
+    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=900, env_spacing=0.2)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -239,7 +239,7 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
-        self.episode_length_s = 500.0  # seconds
+        self.episode_length_s = 400.0  # seconds
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings
