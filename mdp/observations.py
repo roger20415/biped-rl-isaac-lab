@@ -72,16 +72,3 @@ def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshol
     z = asset.data.body_pos_w[:, body_ids, 2]  
     contact = (z < threshold).float()
     return contact
-
-
-def obs_affine(
-    env: Any,
-    inner_func,
-    inner_params=None,
-    mean=0.0,
-    std=1.0
-):
-    x = inner_func(env, inner_params)
-    std_t  = torch.as_tensor(std,  dtype=x.dtype, device=x.device)
-    mean_t = torch.as_tensor(mean, dtype=x.dtype, device=x.device)
-    return x * std_t + mean_t
