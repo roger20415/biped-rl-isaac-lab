@@ -58,16 +58,6 @@ class ExpertDataset(Dataset):
     def __getitem__(self, idx):
         return self.observations[idx], self.actions[idx]
 
-# --- 2. Generate Mock Expert Data ---
-def generate_mock_data(filepath, n_samples, obs_dim, act_dim):
-    if not os.path.exists(filepath):
-        print(f"Generating mock expert data ( {n_samples} samples)...")
-        mock_obs = np.random.rand(n_samples, obs_dim).astype(np.float32)
-        # Simulate a simple linear policy
-        mock_acts = mock_obs[:, 0:act_dim] * 0.5 + 0.2
-        np.savez(filepath, obs=mock_obs, actions=mock_acts)
-        print(f"Mock data saved to {filepath}")
-
 if __name__ == "__main__":
     # must match rl env cfg
     OBS_DIM = 34
@@ -92,11 +82,9 @@ if __name__ == "__main__":
         script_dir = os.getcwd()
 
     # file paths
-    EXPERT_DATA_PATH = os.path.join(script_dir, "expert_data_train.npz")
-    BODY_WEIGHTS_PATH = os.path.join(script_dir, "bc_actor_body_weights.pth")
-    HEAD_WEIGHTS_PATH = os.path.join(script_dir, "bc_actor_head_weights.pth")
-
-    generate_mock_data(EXPERT_DATA_PATH, n_samples=5000, obs_dim=OBS_DIM, act_dim=ACT_DIM)
+    EXPERT_DATA_PATH = os.path.join(script_dir, "data/expert_data_train.npz")
+    BODY_WEIGHTS_PATH = os.path.join(script_dir, "model/bc_actor_body_weights.pth")
+    HEAD_WEIGHTS_PATH = os.path.join(script_dir, "model/bc_actor_head_weights.pth")
 
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"using: {DEVICE}")
@@ -127,7 +115,7 @@ if __name__ == "__main__":
     val_dataset = ExpertDataset(obs_val, act_val)
     
     train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=True)
     
     # 1. Model setup (no change)
     model = ActorBC(

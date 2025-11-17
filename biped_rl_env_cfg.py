@@ -3,9 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import math
-import torch
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -23,8 +20,8 @@ from . import mdp
 ##
 # Pre-defined configs
 ##
-
 from isaaclab_tasks.manager_based.biped_rl.assets.biped_config import BIPED_CFG  # isort:skip
+from .bc.preprocess_cfg import PreprocessCfg
 
 
 JOINTS: list[str] = ["sacrum","l_hip", "l_thigh",
@@ -33,7 +30,9 @@ JOINTS: list[str] = ["sacrum","l_hip", "l_thigh",
                      "r_hip", "r_thigh",
                      "r_calf", "r_ankle",
                      "r_foot"]
-REVOLUTE_JOINTS: list[str] = JOINTS[1:]  # exclude sacrum
+FOOT_CONTACT_THRESHOLD: float = 0.0014  # meters
+
+ACTION_SCALES = mdp.load_action_scales()
 
 ##
 # Scene definition
@@ -69,15 +68,10 @@ class BipedRlSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    sacrum_position = mdp.JointPositionActionCfg(
-        asset_name="robot", 
-        joint_names=["sacrum"],
-        scale=0.007) #0.009
-    revolute_joints_position = mdp.JointPositionActionCfg(
-        asset_name="robot",
-        joint_names=REVOLUTE_JOINTS,
-        scale=math.radians(10.0)) #40
-
+    (sacrum_position, l_hip_position, l_thigh_position, l_calf_position, l_ankle_position, l_foot_position,
+    r_hip_position, r_thigh_position, r_calf_position, r_ankle_position, r_foot_position) = [
+        mdp.JointPositionActionCfg(asset_name="robot", joint_names=JOINTS[i], scale=float(ACTION_SCALES[i])) for i in range(len(JOINTS))
+    ]
 
 @configclass
 class ObservationsCfg:
@@ -86,30 +80,66 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
-
-        # observation terms (order preserved)
-        baselink_W_height = ObsTerm(func=mdp.base_pos_z)
-        baselink_W_euler_xy = ObsTerm(
-            func=mdp.get_euler_W_xy,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["base_link"])})
-        base_lin_vel = ObsTerm(func=mdp.root_lin_vel_w)
-        baselink_ang_vel = ObsTerm(func=mdp.root_ang_vel_w)
+        baselink_W_height = ObsTerm(
+            func=mdp.get_norm_vector,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+                "getter" : mdp.base_pos_z,
+                "mean": [float(PreprocessCfg.OBS_MEAN[0])],
+                "std": [float(PreprocessCfg.OBS_STD[0])],
+            }
+        )
+        baselink_W_euler_xyz = ObsTerm(
+            func=mdp.get_norm_euler_W_xyz,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+                "mean": PreprocessCfg.OBS_MEAN[1:4].tolist(),
+                "std": PreprocessCfg.OBS_STD[1:4].tolist(),
+            }
+        )
+        baselink_lin_vel = ObsTerm(
+            func=mdp.get_norm_vector,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+                "getter": mdp.root_lin_vel_w,
+                "mean": PreprocessCfg.OBS_MEAN[4:7].tolist(),
+                "std": PreprocessCfg.OBS_STD[4:7].tolist(),
+            }
+        )
+        baselink_ang_vel = ObsTerm(
+            func=mdp.get_norm_vector,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+                "getter": mdp.root_ang_vel_w,
+                "mean": PreprocessCfg.OBS_MEAN[7:10].tolist(),
+                "std": PreprocessCfg.OBS_STD[7:10].tolist(),
+            }
+        )
         joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS)}
+            func=mdp.get_norm_vector,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
+                "getter": mdp.joint_pos_rel,
+                "mean": PreprocessCfg.OBS_MEAN[10:21].tolist(),
+                "std": PreprocessCfg.OBS_STD[10:21].tolist(),
+            }
         )
         joint_vel = ObsTerm(
-            func=mdp.joint_vel_rel,
-            params={"asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS)}
+            func=mdp.get_norm_vector,
+            params={
+                "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
+                "getter": mdp.joint_vel_rel,
+                "mean": PreprocessCfg.OBS_MEAN[21:32].tolist(),
+                "std": PreprocessCfg.OBS_STD[21:32].tolist(),
+            }
         )
-
         l_foot_contact = ObsTerm(
             func=mdp.has_foot_contact,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["l_foot_1"])}
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=["l_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
         r_foot_contact = ObsTerm(
             func=mdp.has_foot_contact,
-            params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"])}
+            params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
 
         def __post_init__(self) -> None:
@@ -118,6 +148,7 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
+    critic: PolicyCfg = PolicyCfg()
 
 
 @configclass
@@ -182,7 +213,7 @@ class TerminationsCfg:
         func=mdp.base_height_out_of_manual_limit,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
-            "bounds": (0.0137, 0.022),   # (min_z, max_z)
+            "bounds": (0.0198, 0.0212),   # (min_z, max_z)
         },
     )
 
@@ -208,11 +239,11 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
-        self.episode_length_s = 10
+        self.episode_length_s = 400.0  # seconds
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings
         self.sim.dt = 1/120
-        target_control_dt = 0.05 # s
+        target_control_dt = 1.0 # s #0.05
         self.decimation = int(round(target_control_dt / self.sim.dt))
-        self.sim.render_interval = self.decimation
+        self.sim.render_interval = 1

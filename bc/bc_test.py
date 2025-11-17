@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
-# 固定批量大小；其餘維度由檔案自動決定
+
 BATCH_SIZE = 256
 NET_ARCH_PI = [64, 64]
 ACTIVATION_FN = 'nn.ELU'

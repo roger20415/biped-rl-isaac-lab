@@ -101,8 +101,8 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
-DUMMY_BODY_WEIGHTS_PATH = "./bc/bc_actor_body_weights.pth"
-DUMMY_HEAD_WEIGHTS_PATH = "./bc/bc_actor_head_weights.pth"
+DUMMY_BODY_WEIGHTS_PATH = "./bc/model/bc_actor_body_weights.pth"
+DUMMY_HEAD_WEIGHTS_PATH = "./bc/model/bc_actor_head_weights.pth"
 
 
 @hydra_task_config(args_cli.task, args_cli.agent)
