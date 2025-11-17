@@ -1,10 +1,12 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
+
+from expert_data import ExpertDataset
 
 ACTIVATION_FNS = {
     'nn.ELU': nn.ELU,
@@ -45,18 +47,7 @@ class ActorBC(nn.Module):
         features = self.policy_net(obs)
         mean = self.action_net(features)
         return mean
-
-# --- 1. Expert Dataset ---
-class ExpertDataset(Dataset):
-    def __init__(self, observations, actions):
-        self.observations = observations
-        self.actions = actions
-
-    def __len__(self):
-        return len(self.observations)
-
-    def __getitem__(self, idx):
-        return self.observations[idx], self.actions[idx]
+    
 
 if __name__ == "__main__":
     # must match rl env cfg
