@@ -81,7 +81,7 @@ def main():
     dataset = ExpertDataset(obs, acts)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    # 2) 建立模型（維度以檔案為準）
+    # 2) build model
     model = ActorBC(
         obs_dim=obs_dim,
         act_dim=act_dim,
@@ -89,7 +89,7 @@ def main():
         activation_fn_str=ACTIVATION_FN
     ).to(device)
 
-    # 3) 嚴格載入權重（缺任一就報錯；shape 不符也報錯）
+    # 3) load weights
     if not os.path.exists(BODY_WEIGHTS_PATH):
         raise FileNotFoundError(f"Body weights not found: {BODY_WEIGHTS_PATH}")
     if not os.path.exists(HEAD_WEIGHTS_PATH):
@@ -98,12 +98,12 @@ def main():
     body_sd = torch.load(BODY_WEIGHTS_PATH, map_location=device)
     head_sd = torch.load(HEAD_WEIGHTS_PATH, map_location=device)
 
-    # 嚴格檢查
+    # strict check
     model.policy_net.load_state_dict(body_sd, strict=True)
     model.action_net.load_state_dict(head_sd, strict=True)
     print("Weights loaded successfully.")
 
-    # 4) 推論與指標
+    # 4) inference and metrics
     model.eval()
     preds, gts = [], []
     with torch.no_grad():
@@ -125,7 +125,7 @@ def main():
     print("Per-dimension MSE:", np.array2string(mse_vec, precision=6, separator=', '))
     print("Per-dimension MAE:", np.array2string(mae_vec, precision=6, separator=', '))
 
-    # 5) 儲存推論結果（便於後續分析/畫圖）
+    # 5) Store prediction results
     np.savez(
         EVAL_SAVE_PATH,
         obs=obs.astype(np.float32),
