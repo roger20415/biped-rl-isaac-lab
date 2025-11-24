@@ -16,10 +16,10 @@ except NameError:
     print("Warning: __file__ not defined. Using current working directory.")
     SCRIPT_DIR = os.getcwd()
 
-EXPERT_DATA_PATH   = os.path.join(SCRIPT_DIR, "./data/expert_data_test.npz")
+EXPERT_DATA_PATH   = os.path.join(SCRIPT_DIR, "./test_data/processed_expert_data.npz")
 BODY_WEIGHTS_PATH  = os.path.join(SCRIPT_DIR, "./model/bc_actor_body_weights.pth")
 HEAD_WEIGHTS_PATH  = os.path.join(SCRIPT_DIR, "./model/bc_actor_head_weights.pth")
-EVAL_SAVE_PATH     = os.path.join(SCRIPT_DIR, "./model/bc_eval_results.npz")
+EVAL_SAVE_PATH     = os.path.join(SCRIPT_DIR, "./eval_results/bc_eval_results.npz")
 
 # -----------------------------
 # Model

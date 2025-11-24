@@ -8,9 +8,9 @@ try:
 except NameError:
     script_dir = os.getcwd()
 
-DATA_DIR = os.path.join(script_dir, "data")
+DATA_DIR = os.path.join(script_dir, "test_data")
 INPUT_RAW_DATA_PATH = os.path.join(DATA_DIR, "expert_data.npz")
-OUTPUT_TRAIN_DATA_PATH = os.path.join(DATA_DIR, "expert_data_train.npz")
+OUTPUT_DATA_PATH = os.path.join(DATA_DIR, "processed_expert_data.npz")
 
 
 def preprocess_observations(obs_data: np.ndarray, 
@@ -73,7 +73,7 @@ def preprocess_actions(act_data: np.ndarray,
     action_norm_target_clipped = np.clip(action_norm_target, -1.0, 1.0)
     
     print(f"[Act] Normalization complete.")
-    np.save("./data/action_scales.npy", scale)
+    np.save(os.path.join(DATA_DIR, "action_scales.npy"), scale)
     return action_norm_target_clipped.astype(np.float32)
 
 def main():
@@ -107,19 +107,19 @@ def main():
         PreprocessCfg.ACTION_MIN,
     )
     
-    # --- 4. Saving processed training file ---
-    print(f"Saving processed training file: {OUTPUT_TRAIN_DATA_PATH} ...")
+    # --- 4. Saving processed data file ---
+    print(f"Saving processed data file: {OUTPUT_DATA_PATH} ...")
     try:
         np.savez(
-            OUTPUT_TRAIN_DATA_PATH,
+            OUTPUT_DATA_PATH,
             obs=normalized_obs,
             actions=normalized_actions
         )
         print("\n" + "="*30)
-        print(f"Saving {OUTPUT_TRAIN_DATA_PATH}")
+        print(f"Saving {OUTPUT_DATA_PATH}")
         print("="*30)
     except Exception as e:
-        print(f"Error saving the final training file: {e}")
+        print(f"Error saving the final processed data file: {e}")
 
 if __name__ == "__main__":
     main()
