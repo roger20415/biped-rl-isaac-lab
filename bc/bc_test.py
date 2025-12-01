@@ -2,8 +2,9 @@ import os
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import DataLoader
 
+from expert_data import ExpertDataset
 
 BATCH_SIZE = 256
 NET_ARCH_PI = [64, 64]
@@ -15,10 +16,10 @@ except NameError:
     print("Warning: __file__ not defined. Using current working directory.")
     SCRIPT_DIR = os.getcwd()
 
-EXPERT_DATA_PATH   = os.path.join(SCRIPT_DIR, "expert_data_test.npz")
-BODY_WEIGHTS_PATH  = os.path.join(SCRIPT_DIR, "bc_actor_body_weights.pth")
-HEAD_WEIGHTS_PATH  = os.path.join(SCRIPT_DIR, "bc_actor_head_weights.pth")
-EVAL_SAVE_PATH     = os.path.join(SCRIPT_DIR, "bc_eval_results.npz")
+EXPERT_DATA_PATH   = os.path.join(SCRIPT_DIR, "./test_data/processed_expert_data.npz")
+BODY_WEIGHTS_PATH  = os.path.join(SCRIPT_DIR, "./model/bc_actor_body_weights.pth")
+HEAD_WEIGHTS_PATH  = os.path.join(SCRIPT_DIR, "./model/bc_actor_head_weights.pth")
+EVAL_SAVE_PATH     = os.path.join(SCRIPT_DIR, "./eval_results/bc_eval_results.npz")
 
 # -----------------------------
 # Model
@@ -49,21 +50,6 @@ class ActorBC(nn.Module):
         return self.action_net(self.policy_net(obs))
 
 # -----------------------------
-# Dataset
-# -----------------------------
-class ExpertDataset(Dataset):
-    def __init__(self, obs: np.ndarray, acts: np.ndarray):
-        self.obs = torch.from_numpy(obs).float()
-        self.acts = torch.from_numpy(acts).float()
-        assert self.obs.shape[0] == self.acts.shape[0], "Sample count mismatch."
-
-    def __len__(self):
-        return self.obs.shape[0]
-
-    def __getitem__(self, idx):
-        return self.obs[idx], self.acts[idx]
-
-# -----------------------------
 # Metrics
 # -----------------------------
 def compute_metrics(pred: torch.Tensor, target: torch.Tensor):
@@ -81,14 +67,13 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
-    # 1) 僅讀取現有資料（不產生 dummy）
+    # 1) load expert data
     if not os.path.exists(EXPERT_DATA_PATH):
         raise FileNotFoundError(f"Expert data not found: {EXPERT_DATA_PATH}")
     data = np.load(EXPERT_DATA_PATH)
     obs = data["obs"]
     acts = data["actions"]
 
-    # 依檔案自動取得維度
     obs_dim = int(obs.shape[1])
     act_dim = int(acts.shape[1])
     print(f"Loaded expert_data.npz -> obs_dim={obs_dim}, act_dim={act_dim}, samples={obs.shape[0]}")
@@ -96,7 +81,7 @@ def main():
     dataset = ExpertDataset(obs, acts)
     loader = DataLoader(dataset, batch_size=BATCH_SIZE, shuffle=False)
 
-    # 2) 建立模型（維度以檔案為準）
+    # 2) build model
     model = ActorBC(
         obs_dim=obs_dim,
         act_dim=act_dim,
@@ -104,7 +89,7 @@ def main():
         activation_fn_str=ACTIVATION_FN
     ).to(device)
 
-    # 3) 嚴格載入權重（缺任一就報錯；shape 不符也報錯）
+    # 3) load weights
     if not os.path.exists(BODY_WEIGHTS_PATH):
         raise FileNotFoundError(f"Body weights not found: {BODY_WEIGHTS_PATH}")
     if not os.path.exists(HEAD_WEIGHTS_PATH):
@@ -113,12 +98,12 @@ def main():
     body_sd = torch.load(BODY_WEIGHTS_PATH, map_location=device)
     head_sd = torch.load(HEAD_WEIGHTS_PATH, map_location=device)
 
-    # 嚴格檢查
+    # strict check
     model.policy_net.load_state_dict(body_sd, strict=True)
     model.action_net.load_state_dict(head_sd, strict=True)
     print("Weights loaded successfully.")
 
-    # 4) 推論與指標
+    # 4) inference and metrics
     model.eval()
     preds, gts = [], []
     with torch.no_grad():
@@ -140,7 +125,7 @@ def main():
     print("Per-dimension MSE:", np.array2string(mse_vec, precision=6, separator=', '))
     print("Per-dimension MAE:", np.array2string(mae_vec, precision=6, separator=', '))
 
-    # 5) 儲存推論結果（便於後續分析/畫圖）
+    # 5) Store prediction results
     np.savez(
         EVAL_SAVE_PATH,
         obs=obs.astype(np.float32),

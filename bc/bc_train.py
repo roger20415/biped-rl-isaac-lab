@@ -1,16 +1,20 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 import numpy as np
 import os
 from sklearn.model_selection import train_test_split
+
+from expert_data import ExpertDataset
 
 ACTIVATION_FNS = {
     'nn.ELU': nn.ELU,
     'nn.ReLU': nn.ReLU,
     'nn.Tanh': nn.Tanh,
 }
+
+RESUME_TRAINING = True
 
 class ActorBC(nn.Module):
     def __init__(self, obs_dim, act_dim, 
@@ -45,18 +49,7 @@ class ActorBC(nn.Module):
         features = self.policy_net(obs)
         mean = self.action_net(features)
         return mean
-
-# --- 1. Expert Dataset ---
-class ExpertDataset(Dataset):
-    def __init__(self, observations, actions):
-        self.observations = observations
-        self.actions = actions
-
-    def __len__(self):
-        return len(self.observations)
-
-    def __getitem__(self, idx):
-        return self.observations[idx], self.actions[idx]
+    
 
 if __name__ == "__main__":
     # must match rl env cfg
@@ -82,7 +75,7 @@ if __name__ == "__main__":
         script_dir = os.getcwd()
 
     # file paths
-    EXPERT_DATA_PATH = os.path.join(script_dir, "data/expert_data_train.npz")
+    EXPERT_DATA_PATH = os.path.join(script_dir, "train_data/processed_expert_data.npz")
     BODY_WEIGHTS_PATH = os.path.join(script_dir, "model/bc_actor_body_weights.pth")
     HEAD_WEIGHTS_PATH = os.path.join(script_dir, "model/bc_actor_head_weights.pth")
 
@@ -125,6 +118,25 @@ if __name__ == "__main__":
         activation_fn_str=ACTIVATION_FN
     ).to(DEVICE)
     
+    if RESUME_TRAINING:
+            print("Checking for existing weights to resume training...")
+            if os.path.exists(BODY_WEIGHTS_PATH) and os.path.exists(HEAD_WEIGHTS_PATH):
+                try:
+                    body_sd = torch.load(BODY_WEIGHTS_PATH, map_location=DEVICE)
+                    head_sd = torch.load(HEAD_WEIGHTS_PATH, map_location=DEVICE)
+                    model.policy_net.load_state_dict(body_sd)
+                    model.action_net.load_state_dict(head_sd)
+                    
+                    print(f"Successfully loaded weights from:\n  - {BODY_WEIGHTS_PATH}\n  - {HEAD_WEIGHTS_PATH}")
+                except Exception as e:
+                    print(f"Error loading weights: {e}")
+                    print("Starting training from scratch.")
+            else:
+                print(f"RESUME_TRAINING is True, but weights not found.")
+                print("Starting training from scratch.")
+    else:
+        print("RESUME_TRAINING is False. Starting fresh.")
+
     criterion = nn.MSELoss()
     optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
@@ -174,6 +186,24 @@ if __name__ == "__main__":
     # 3. Save weights
     model.eval()
 
+    # save old weights with _old suffix
+    body_weights_old = BODY_WEIGHTS_PATH.replace('.pth', '_old.pth')
+    head_weights_old = HEAD_WEIGHTS_PATH.replace('.pth', '_old.pth')
+
+    print("Backing up old weights...")
+    if os.path.exists(BODY_WEIGHTS_PATH):
+        if os.path.exists(body_weights_old):
+            os.remove(body_weights_old)
+        os.rename(BODY_WEIGHTS_PATH, body_weights_old)
+        print(f" -> Body weights backed up to: {body_weights_old}")
+        
+    if os.path.exists(HEAD_WEIGHTS_PATH):
+        if os.path.exists(head_weights_old):
+            os.remove(head_weights_old)
+        os.rename(HEAD_WEIGHTS_PATH, head_weights_old)
+        print(f" -> Head weights backed up to: {head_weights_old}")
+
+    # save new weights
     try:
         print(f"Saving body weights: {BODY_WEIGHTS_PATH}")
         torch.save(model.policy_net.state_dict(), BODY_WEIGHTS_PATH)

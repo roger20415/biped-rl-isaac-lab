@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import glob
 
 from preprocess_cfg import PreprocessCfg
 
@@ -8,9 +9,11 @@ try:
 except NameError:
     script_dir = os.getcwd()
 
-DATA_DIR = os.path.join(script_dir, "data")
-INPUT_RAW_DATA_PATH = os.path.join(DATA_DIR, "expert_data.npz")
-OUTPUT_TRAIN_DATA_PATH = os.path.join(DATA_DIR, "expert_data_train.npz")
+MODE = 'test_data'
+RAW_DATA_DIR = os.path.join(script_dir, MODE, "raw_data")
+OUTPUT_DIR = os.path.join(script_dir, MODE)
+OUTPUT_DATA_PATH = os.path.join(OUTPUT_DIR, "processed_expert_data.npz")
+ACTION_SCALE_PATH = os.path.join(OUTPUT_DIR, "action_scales.npy")
 
 
 def preprocess_observations(obs_data: np.ndarray, 
@@ -73,53 +76,82 @@ def preprocess_actions(act_data: np.ndarray,
     action_norm_target_clipped = np.clip(action_norm_target, -1.0, 1.0)
     
     print(f"[Act] Normalization complete.")
-    np.save("./data/action_scales.npy", scale)
+    np.save(ACTION_SCALE_PATH, scale)
     return action_norm_target_clipped.astype(np.float32)
 
 def main():
-    # --- 1. Load Raw Data ---
-    os.makedirs(DATA_DIR, exist_ok=True)
-    try:
-        data = np.load(INPUT_RAW_DATA_PATH)
-        raw_obs = data['obs']
-        raw_actions = data['actions']
-    except FileNotFoundError:
-        print(f"Cannot find the raw data file: {INPUT_RAW_DATA_PATH}")
+    # --- 1. Dynamic File Search ---
+    if not os.path.exists(RAW_DATA_DIR):
+        print(f"Error: Raw data directory does not exist: {RAW_DATA_DIR}")
         return
-    except Exception as e:
-        print(f"Error loading NPZ file: {e}")
-        return
-
-    print(f"Successfully loaded {raw_obs.shape[0]} data points.")
     
-    # --- 2. Process Observations ---
+    search_pattern = os.path.join(RAW_DATA_DIR, "*.npz")
+    npz_files = glob.glob(search_pattern)
+    npz_files.sort()
+    if len(npz_files) == 0:
+        print(f"Error: No .npz files found in {RAW_DATA_DIR}")
+        return
+    print(f"Found {len(npz_files)} files in {RAW_DATA_DIR}:")
+    for f in npz_files:
+        print(f" - {os.path.basename(f)}")
+    print("-" * 30)
+    
+    # --- 2. Load and Merge Data ---
+    raw_obs_list = []
+    raw_act_list = []
+    for file_path in npz_files:
+        try:
+            data = np.load(file_path)
+            if 'obs' not in data or 'actions' not in data:
+                print(f"Warning: Skipping {os.path.basename(file_path)} (missing 'obs' or 'actions' key)")
+                continue
+                
+            raw_obs_list.append(data['obs'])
+            raw_act_list.append(data['actions'])
+            
+        except Exception as e:
+            print(f"Error loading {file_path}: {e}")
+
+    if not raw_obs_list:
+        print("Error: No valid data loaded.")
+        return
+    print("Merging data...")
+    full_raw_obs = np.concatenate(raw_obs_list, axis=0)
+    full_raw_actions = np.concatenate(raw_act_list, axis=0)
+    print(f"Total merged samples: {full_raw_obs.shape[0]}")
+
+    # --- 3. Process Observations ---
     normalized_obs = preprocess_observations(
-        raw_obs,
+        full_raw_obs,
         PreprocessCfg.OBS_MEAN,
         PreprocessCfg.OBS_STD
     )
     
-    # --- 3. Process Actions ---
+    # --- 4. Process Actions ---
     normalized_actions = preprocess_actions(
-        raw_actions,
+        full_raw_actions,
         PreprocessCfg.DEFAULT_JOINT_POSITIONS,
         PreprocessCfg.ACTION_MAX,
         PreprocessCfg.ACTION_MIN,
     )
     
-    # --- 4. Saving processed training file ---
-    print(f"Saving processed training file: {OUTPUT_TRAIN_DATA_PATH} ...")
+    # --- 5. Save ---
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
+    print(f"Saving processed data file to: {OUTPUT_DATA_PATH} ...")
     try:
         np.savez(
-            OUTPUT_TRAIN_DATA_PATH,
+            OUTPUT_DATA_PATH,
             obs=normalized_obs,
             actions=normalized_actions
         )
         print("\n" + "="*30)
-        print(f"Saving {OUTPUT_TRAIN_DATA_PATH}")
+        print(f"Processing Finished!")
+        print(f"Input Directory:  {RAW_DATA_DIR}")
+        print(f"Output File:      {OUTPUT_DATA_PATH}")
+        print(f"Total Files Used: {len(npz_files)}")
         print("="*30)
     except Exception as e:
-        print(f"Error saving the final training file: {e}")
+        print(f"Error saving file: {e}")
 
 if __name__ == "__main__":
     main()

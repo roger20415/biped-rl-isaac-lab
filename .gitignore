@@ -75,3 +75,4 @@ tests/
 *.npz
 *.npy
 *.etli
+*.csv
