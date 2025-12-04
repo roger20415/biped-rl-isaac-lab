@@ -53,7 +53,7 @@ class ActorBC(nn.Module):
 
 if __name__ == "__main__":
     # must match rl env cfg
-    OBS_DIM = 34
+    OBS_DIM = 34*3+11*2
     ACT_DIM = 11
     
     # must match rl yaml
