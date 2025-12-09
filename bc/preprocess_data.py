@@ -9,7 +9,7 @@ try:
 except NameError:
     script_dir = os.getcwd()
 
-MODE = 'test_data'
+MODE = 'train_data'
 RAW_DATA_DIR = os.path.join(script_dir, MODE, "raw_data")
 OUTPUT_DIR = os.path.join(script_dir, MODE)
 OUTPUT_DATA_PATH = os.path.join(OUTPUT_DIR, "processed_expert_data.npz")
@@ -105,10 +105,8 @@ def main():
             if 'obs' not in data or 'actions' not in data:
                 print(f"Warning: Skipping {os.path.basename(file_path)} (missing 'obs' or 'actions' key)")
                 continue
-                
             raw_obs_list.append(data['obs'])
             raw_act_list.append(data['actions'])
-            
         except Exception as e:
             print(f"Error loading {file_path}: {e}")
 
@@ -121,19 +119,55 @@ def main():
     print(f"Total merged samples: {full_raw_obs.shape[0]}")
 
     # --- 3. Process Observations ---
-    normalized_obs = preprocess_observations(
-        full_raw_obs,
-        PreprocessCfg.OBS_MEAN,
-        PreprocessCfg.OBS_STD
+
+    obs_dim = PreprocessCfg.OBS_MEAN.shape[0]
+    act_dim = PreprocessCfg.DEFAULT_JOINT_POSITIONS.shape[0]
+
+    idx_s_t2_end = obs_dim
+    idx_s_t1_end = obs_dim * 2
+    idx_s_t0_end = obs_dim * 3
+    idx_a_t2_end = obs_dim * 3 + act_dim
+
+    raw_s_t2 = full_raw_obs[:, 0            : idx_s_t2_end]
+    raw_s_t1 = full_raw_obs[:, idx_s_t2_end : idx_s_t1_end]
+    raw_s_t0 = full_raw_obs[:, idx_s_t1_end : idx_s_t0_end]
+    raw_a_t2 = full_raw_obs[:, idx_s_t0_end : idx_a_t2_end]
+    raw_a_t1 = full_raw_obs[:, idx_a_t2_end : ]
+
+    # 1. Normalize Observations (S)
+    norm_s_t2 = preprocess_observations(raw_s_t2, PreprocessCfg.OBS_MEAN, PreprocessCfg.OBS_STD)
+    norm_s_t1 = preprocess_observations(raw_s_t1, PreprocessCfg.OBS_MEAN, PreprocessCfg.OBS_STD)
+    norm_s_t0 = preprocess_observations(raw_s_t0, PreprocessCfg.OBS_MEAN, PreprocessCfg.OBS_STD)
+
+    # 2. Normalize History Actions (A_history)
+    norm_a_t2 = preprocess_actions(
+        raw_a_t2, 
+        PreprocessCfg.DEFAULT_JOINT_POSITIONS, 
+        PreprocessCfg.ACTION_MAX, 
+        PreprocessCfg.ACTION_MIN
     )
-    
-    # --- 4. Process Actions ---
-    normalized_actions = preprocess_actions(
+    norm_a_t1 = preprocess_actions(
+        raw_a_t1, 
+        PreprocessCfg.DEFAULT_JOINT_POSITIONS, 
+        PreprocessCfg.ACTION_MAX, 
+        PreprocessCfg.ACTION_MIN
+    )
+
+    # 3. Normalize Target Actions (Label)
+    norm_act_target = preprocess_actions(
         full_raw_actions,
         PreprocessCfg.DEFAULT_JOINT_POSITIONS,
         PreprocessCfg.ACTION_MAX,
-        PreprocessCfg.ACTION_MIN,
+        PreprocessCfg.ACTION_MIN
     )
+
+    print("Reconstructing stacked vector...")
+    final_obs_normalized = np.concatenate(
+        [norm_s_t2, norm_s_t1, norm_s_t0, norm_a_t2, norm_a_t1], 
+        axis=1
+    )
+
+    print(f"Final Normalized Input Shape: {final_obs_normalized.shape}")
     
     # --- 5. Save ---
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -141,8 +175,8 @@ def main():
     try:
         np.savez(
             OUTPUT_DATA_PATH,
-            obs=normalized_obs,
-            actions=normalized_actions
+            obs=final_obs_normalized,
+            actions=norm_act_target
         )
         print("\n" + "="*30)
         print(f"Processing Finished!")
