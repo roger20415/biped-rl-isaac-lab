@@ -14,6 +14,7 @@ RAW_DATA_DIR = os.path.join(script_dir, MODE, "raw_data")
 OUTPUT_DIR = os.path.join(script_dir, MODE)
 OUTPUT_DATA_PATH = os.path.join(OUTPUT_DIR, "processed_expert_data.npz")
 ACTION_SCALE_PATH = os.path.join(OUTPUT_DIR, "action_scales.npy")
+CLOCK_DIM = 2
 
 
 def preprocess_observations(obs_data: np.ndarray, 
@@ -132,7 +133,8 @@ def main():
     raw_s_t1 = full_raw_obs[:, idx_s_t2_end : idx_s_t1_end]
     raw_s_t0 = full_raw_obs[:, idx_s_t1_end : idx_s_t0_end]
     raw_a_t2 = full_raw_obs[:, idx_s_t0_end : idx_a_t2_end]
-    raw_a_t1 = full_raw_obs[:, idx_a_t2_end : ]
+    raw_a_t1 = full_raw_obs[:, idx_a_t2_end : -CLOCK_DIM]
+    raw_clock = full_raw_obs[:, -CLOCK_DIM : ]
 
     # 1. Normalize Observations (S)
     norm_s_t2 = preprocess_observations(raw_s_t2, PreprocessCfg.OBS_MEAN, PreprocessCfg.OBS_STD)
@@ -163,7 +165,7 @@ def main():
 
     print("Reconstructing stacked vector...")
     final_obs_normalized = np.concatenate(
-        [norm_s_t2, norm_s_t1, norm_s_t0, norm_a_t2, norm_a_t1], 
+        [norm_s_t2, norm_s_t1, norm_s_t0, norm_a_t2, norm_a_t1, raw_clock], 
         axis=1
     )
 
