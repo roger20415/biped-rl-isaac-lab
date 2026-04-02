@@ -17,8 +17,8 @@ ACTIVATION_FNS = {
 RESUME_TRAINING = True
 
 class ActorBC(nn.Module):
-    def __init__(self, obs_dim, act_dim, 
-                 net_arch_pi=[64, 64], 
+    def __init__(self, obs_dim, act_dim,
+                 net_arch_pi=[64, 64],
                  activation_fn_str='nn.ELU'):
         
         super(ActorBC, self).__init__()
@@ -53,7 +53,7 @@ class ActorBC(nn.Module):
 
 if __name__ == "__main__":
     # must match rl env cfg
-    OBS_DIM = 34*3+11*2+2
+    OBS_DIM = 34*3+11*2+1
     ACT_DIM = 11
     
     # must match rl yaml
