@@ -31,10 +31,11 @@ class PreprocessCfg:
         0,
         0.327484, 0.436332, 0.872665, 0, 0.284272,
         0.284272, 0, 0, 0, 0.284272
-    ], dtype=np.float32)
+    ], dtype=np.float32) *1.05
 
     ACTION_MIN = np.array([
         -1.047198,
         -0.283381, 0, 0, -0.436332, 0,
         -0.283381, 0, 0, 0, 0
-    ], dtype=np.float32)
+    ], dtype=np.float32) *1.05
+
