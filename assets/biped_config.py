@@ -6,7 +6,28 @@ from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.sim import UsdFileCfg
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-USD_PATH = os.path.join(CURRENT_DIR, "biped.usd")
+USD_PATH = os.path.join(CURRENT_DIR, "biped_v3.usd")
+
+
+def get_optimized_actuators_cfg() -> dict:
+    """
+    Returns an optimized actuator configuration for the biped robot.
+    Groups joints with identical stiffness and damping properties.
+    """
+    
+    return {
+        "back_actuator": ImplicitActuatorCfg(
+            joint_names_expr=["back"],
+            stiffness=150.0,
+            damping=1.0
+        ),
+        
+        "legs_and_lower_body": ImplicitActuatorCfg(
+            joint_names_expr=["sacrum", ".*_hip", ".*_thigh", ".*_calf", ".*_ankle", ".*_foot"],
+            stiffness=10.0,
+            damping=0.0
+        ),
+    }
 
 BIPED_CFG = ArticulationCfg(
     spawn=UsdFileCfg(
@@ -23,10 +44,8 @@ BIPED_CFG = ArticulationCfg(
     ),
 
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.002),
+        pos=(0.0, 0.0, 0.0239),
     ),
 
-    actuators={
-        "joints_actuators": ImplicitActuatorCfg(joint_names_expr=[".*"], damping=None, stiffness=None)
-    },
+    actuators=get_optimized_actuators_cfg(),
 )
