@@ -15,6 +15,7 @@ OUTPUT_DIR = os.path.join(script_dir, MODE)
 OUTPUT_DATA_PATH = os.path.join(OUTPUT_DIR, "processed_expert_data.npz")
 ACTION_SCALE_PATH = os.path.join(OUTPUT_DIR, "action_scales.npy")
 CLOCK_DIM = 0
+OBS_EULAR_INDICES = [1, 2, 3]
 
 # TODO: bug! eular angle (obs[1:4]) normalization should be done with sin/cos instead of mean/std, otherwise the discontinuity at ±π will cause huge spikes in normalized values and destabilize training. This is a critical issue that must be fixed before training. The current code is only a temporary workaround to get some results, but it is not a proper solution. The correct way is to convert angles to sin/cos representation before normalization, and convert back to angles after denormalization. This way we can avoid the discontinuity issue and have a more stable training process.
 # TODO: MLP collect data and train again
@@ -30,12 +31,24 @@ def preprocess_observations(obs_data: np.ndarray,
         )
     
     # Prevent division by zero
-    obs_std[obs_std < 1e-8] = 1.0
-    print(f"[Obs] Applying (obs - μ) / σ ...")
-    normalized_obs = (obs_data - obs_mean) / obs_std
+    # copy obs_std to avoid modifying the original array
+    obs_std_safe = np.copy(obs_std)
+    obs_std_safe[obs_std_safe < 1e-8] = 1.0
+
+    print(f"[Obs] Applying normalizations (Z-score for linear, atan2 for Euler)...")
+    normalized_obs = np.zeros_like(obs_data, dtype=np.float32)
+
+    # normalize eular angles
+    diff_euler = obs_data[:, OBS_EULAR_INDICES] - obs_mean[OBS_EULAR_INDICES]
+    normalized_euler = np.arctan2(np.sin(diff_euler), np.cos(diff_euler)) / obs_std_safe[OBS_EULAR_INDICES]
+    normalized_obs[:, OBS_EULAR_INDICES] = normalized_euler
+
+    # normalize other linear values with Z-score
+    linear_indices = [i for i in range(obs_data.shape[1]) if i not in OBS_EULAR_INDICES]
+    normalized_obs[:, linear_indices] = (obs_data[:, linear_indices] - obs_mean[linear_indices]) / obs_std_safe[linear_indices]
+    
     print(f"[Obs] Normalization complete.")
     return normalized_obs.astype(np.float32)
-
 
 def preprocess_actions(act_data: np.ndarray, 
                        default_pose: np.ndarray, 
