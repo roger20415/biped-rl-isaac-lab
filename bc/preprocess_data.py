@@ -17,8 +17,6 @@ ACTION_SCALE_PATH = os.path.join(OUTPUT_DIR, "action_scales.npy")
 CLOCK_DIM = 0
 OBS_EULAR_INDICES = [1, 2, 3]
 
-# TODO: bug! eular angle (obs[1:4]) normalization should be done with sin/cos instead of mean/std, otherwise the discontinuity at ±π will cause huge spikes in normalized values and destabilize training. This is a critical issue that must be fixed before training. The current code is only a temporary workaround to get some results, but it is not a proper solution. The correct way is to convert angles to sin/cos representation before normalization, and convert back to angles after denormalization. This way we can avoid the discontinuity issue and have a more stable training process.
-# TODO: MLP collect data and train again
 
 def preprocess_observations(obs_data: np.ndarray, 
                        obs_mean: np.ndarray, 

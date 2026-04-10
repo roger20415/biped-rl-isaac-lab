@@ -80,6 +80,19 @@ class ObservationsCfg:
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
+
+        state_t_minus_2 = ObsTerm(
+            # TODO: 需在 mdp 內實作一個 custom getter (例如 get_past_state)，從自建的 buffer 中抓取 t-2 的 34 維狀態
+            func=mdp.get_past_state,
+            params={"step_back": 2}
+        )
+
+        state_t_minus_1 = ObsTerm(
+            func=mdp.get_past_state,
+            params={"step_back": 1}
+        )
+
+
         baselink_W_height = ObsTerm(
             func=mdp.get_norm_vector,
             params={
@@ -142,6 +155,20 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
 
+        # ==========================================
+        # [4] Action History: A_{t-2} (11 dim)
+        # ==========================================
+        # TODO: action t-2
+
+        # ==========================================
+        # [5] Action History: A_{t-1} (11 dim)
+        # ========================================== 
+        # TODO: action t-1
+
+        # ==========================================
+        # [6] Phase (1 dim)
+        # ==========================================
+        # TODO: phase num
 
         # TODO obs must be 34*3 + 11*2 + 1 (phase) = 144
         def __post_init__(self) -> None:
