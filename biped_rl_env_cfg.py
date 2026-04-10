@@ -24,7 +24,8 @@ from isaaclab_tasks.manager_based.biped_rl.assets.biped_config import BIPED_CFG 
 from .bc.preprocess_cfg import PreprocessCfg
 
 
-JOINTS: list[str] = ["sacrum","l_hip", "l_thigh",
+JOINTS: list[str] = ["sacrum",
+                     "l_hip", "l_thigh",
                      "l_calf", "l_ankle",
                      "l_foot",
                      "r_hip", "r_thigh",
@@ -67,7 +68,6 @@ class BipedRlSceneCfg(InteractiveSceneCfg):
 @configclass
 class ActionsCfg:
     """Action specifications for the MDP."""
-
     (sacrum_position, l_hip_position, l_thigh_position, l_calf_position, l_ankle_position, l_foot_position,
     r_hip_position, r_thigh_position, r_calf_position, r_ankle_position, r_foot_position) = [
         mdp.JointPositionActionCfg(asset_name="robot", joint_names=JOINTS[i], scale=float(ACTION_SCALES[i])) for i in range(len(JOINTS))
@@ -142,6 +142,8 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
 
+
+        # TODO obs must be 34*3 + 11*2 + 1 (phase) = 144
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
@@ -190,9 +192,11 @@ class EventCfg:
 class RewardsCfg:
     """Reward terms for the MDP."""
 
+    # TODO: modify reward weights
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
     move_forward = RewTerm(
+            # TODO: should be modified to biped v3
             func=mdp.forward_velocity_reward,
             weight=1.0,
             params={
@@ -205,7 +209,7 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
     """Termination terms for the MDP."""
-
+    # TODO: modify termination conditions
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     # (2) Base height out of bounds
@@ -226,7 +230,7 @@ class TerminationsCfg:
 @configclass
 class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=100, env_spacing=0.2)
+    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=10, env_spacing=0.2)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -239,11 +243,11 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
         """Post initialization."""
         # general settings
-        self.episode_length_s = 400.0  # seconds
+        self.episode_length_s = 30.0  # seconds
         # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
         # simulation settings
         self.sim.dt = 1/120
-        target_control_dt = 1.0 # s #0.05
+        target_control_dt = 0.05
         self.decimation = int(round(target_control_dt / self.sim.dt))
-        self.sim.render_interval = 1
+        self.sim.render_interval = 12
