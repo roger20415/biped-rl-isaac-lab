@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 else:
     ManagerBasedRLEnv = Any
 
+from config import Config
+
 GetterFn = Callable[[ManagerBasedRLEnv, SceneEntityCfg], torch.Tensor]
 
 def quat_to_euler_xyz(quat: torch.Tensor) -> torch.Tensor:
@@ -75,6 +77,13 @@ def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshol
 
 def get_past_state(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
     if not hasattr(env, "custom_state_history"):
-        return torch.zeros((env.num_envs, 34), device=env.device)
+        return torch.zeros((env.num_envs, Config.STATE_DIM), device=env.device)
     idx = -step_back
     return env.custom_state_history[:, idx, :].clone()
+
+def get_past_action(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
+    if not hasattr(env, "custom_action_history"):
+        return torch.zeros((env.num_envs, Config.ACTION_DIM), device=env.device, dtype=torch.float32)
+    
+    idx = -step_back 
+    return env.custom_action_history[:, idx, :].clone()

@@ -16,6 +16,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
 from . import mdp
+from config import Config
 
 ##
 # Pre-defined configs
@@ -154,15 +155,15 @@ class ObservationsCfg:
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
 
-        # ==========================================
-        # [4] Action History: A_{t-2} (11 dim)
-        # ==========================================
-        # TODO: action t-2
+        action_t_minus_2 = ObsTerm(
+            func=mdp.get_past_action,
+            params={"step_back": 2}
+        )
 
-        # ==========================================
-        # [5] Action History: A_{t-1} (11 dim)
-        # ========================================== 
-        # TODO: action t-1
+        action_t_minus_1 = ObsTerm(
+            func=mdp.get_past_action,
+            params={"step_back": 1}
+        )
 
         # ==========================================
         # [6] Phase (1 dim)
@@ -266,7 +267,9 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
 
     state_history_length: int = 2
-    state_dim: int = 34
+    state_dim: int = Config.STATE_DIM
+    action_history_length: int = 2
+    action_dim: int = Config.ACTION_DIM
 
     # Post initialization
     def __post_init__(self) -> None:
