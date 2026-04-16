@@ -82,7 +82,6 @@ class ObservationsCfg:
         """Observations for policy group."""
 
         state_t_minus_2 = ObsTerm(
-            # TODO: 需在 mdp 內實作一個 custom getter (例如 get_past_state)，從自建的 buffer 中抓取 t-2 的 34 維狀態
             func=mdp.get_past_state,
             params={"step_back": 2}
         )
@@ -265,6 +264,9 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
+
+    state_history_length: int = 2
+    state_dim: int = 34
 
     # Post initialization
     def __post_init__(self) -> None:

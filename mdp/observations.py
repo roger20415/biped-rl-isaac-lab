@@ -72,3 +72,9 @@ def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshol
     z = asset.data.body_pos_w[:, body_ids, 2]  
     contact = (z < threshold).float()
     return contact
+
+def get_past_state(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
+    if not hasattr(env, "custom_state_history"):
+        return torch.zeros((env.num_envs, 34), device=env.device)
+    idx = -step_back
+    return env.custom_state_history[:, idx, :].clone()

@@ -14,7 +14,7 @@ from . import agents
 
 gym.register(
     id="Isaac-Biped-Rl-v0",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    entry_point=f"{__name__}.biped_rl_env:BipedRlEnv",
     disable_env_checker=True,
     kwargs={
         "env_cfg_entry_point": f"{__name__}.biped_rl_env_cfg:BipedRlEnvCfg",
