@@ -32,7 +32,7 @@ JOINTS: list[str] = ["sacrum",
                      "r_hip", "r_thigh",
                      "r_calf", "r_ankle",
                      "r_foot"]
-FOOT_CONTACT_THRESHOLD: float = 0.0014  # meters
+FOOT_CONTACT_THRESHOLD: float = 0.0014  # meters # must be consistent with Isaac Sim
 
 ACTION_SCALES = mdp.load_action_scales()
 
@@ -244,7 +244,7 @@ class TerminationsCfg:
         func=mdp.base_height_out_of_manual_limit,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
-            "bounds": (0.0198, 0.0212),   # (min_z, max_z)
+            "bounds": (0.0210, 0.0280),   # (min_z, max_z) # must be consistent with Isaac Sim
         },
     )
 
