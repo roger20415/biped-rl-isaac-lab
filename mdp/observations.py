@@ -42,7 +42,6 @@ def get_norm_euler_W_xyz(env: ManagerBasedRLEnv,
                          std:  list[float] | torch.Tensor) -> torch.Tensor:
     quat: torch.Tensor = root_quat_w(env, asset_cfg)# (N, 4)
     euler: torch.Tensor = quat_to_euler_xyz(quat)# (N, 3)
-    # TODO: let mlp supervised training preprocess data eular 3 dimension part be the same as this function
     mean_t = torch.as_tensor(mean, dtype=euler.dtype, device=euler.device).view(1, -1)# (1,3)
     std_t  = torch.as_tensor(std, dtype=euler.dtype, device=euler.device).view(1, -1)# (1,3)
 
@@ -87,3 +86,7 @@ def get_past_action(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
     
     idx = -step_back 
     return env.custom_action_history[:, idx, :].clone()
+
+def get_phase(env: ManagerBasedRLEnv) -> torch.Tensor:
+    # TODO: now only dummy phase
+    return torch.zeros((env.num_envs, 1), device=env.device, dtype=torch.float32)

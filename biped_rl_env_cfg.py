@@ -92,7 +92,7 @@ class ObservationsCfg:
             params={"step_back": 1}
         )
 
-
+        # State(t) start
         baselink_W_height = ObsTerm(
             func=mdp.get_norm_vector,
             params={
@@ -154,6 +154,7 @@ class ObservationsCfg:
             func=mdp.has_foot_contact,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["r_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
         )
+        # State(t) end
 
         action_t_minus_2 = ObsTerm(
             func=mdp.get_past_action,
@@ -165,12 +166,11 @@ class ObservationsCfg:
             params={"step_back": 1}
         )
 
-        # ==========================================
-        # [6] Phase (1 dim)
-        # ==========================================
-        # TODO: phase num
+        phase = ObsTerm(
+            func=mdp.get_phase
+        )
 
-        # TODO obs must be 34*3 + 11*2 + 1 (phase) = 144
+        # obs must be 34*3 + 11*2 + 1 (phase) = 144
         def __post_init__(self) -> None:
             self.enable_corruption = False
             self.concatenate_terms = True
