@@ -97,6 +97,7 @@ from isaaclab.utils.io import dump_pickle, dump_yaml
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.manager_based.biped_rl.bc.preprocess_cfg import PreprocessCfg
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)
@@ -188,15 +189,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     if norm_args and norm_args.get("normalize_input"):
         print(f"Normalizing input, {norm_args=}")
-        env = VecNormalize(
-            env,
-            training=True,
-            norm_obs=norm_args["normalize_input"],
-            norm_reward=norm_args.get("normalize_value", False),
-            clip_obs=norm_args.get("clip_obs", 100.0),
-            gamma=agent_cfg["gamma"],
-            clip_reward=np.inf,
-        )
+        # env = VecNormalize(
+        #     env,
+        #     training=False, # TODO 260504
+        #     norm_obs=norm_args["normalize_input"],
+        #     norm_reward=norm_args.get("normalize_value", False),
+        #     clip_obs=norm_args.get("clip_obs", 100.0),
+        #     gamma=agent_cfg["gamma"],
+        #     clip_reward=np.inf,
+        # )
 
     # create agent from stable baselines
     agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
@@ -211,6 +212,69 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
         actor_body_net.load_state_dict(body_weights)
         actor_head_net.load_state_dict(head_weights)
+
+        ###################################
+        print("\n" + "="*50)
+        print("🚀 開始進行 BC vs RL 嚴格比對測試 (Deterministic Mode)")
+        print("="*50)
+        
+        # 1. 強制將 Policy 設為推論模式 (鎖定 BatchNorm)
+        agent.policy.eval()
+        
+        # 2. 取得第 0 步的初始觀測值
+        test_obs = env.reset()
+
+        # [修改] 將 device 改為 agent.device，並直接轉換為 numpy 陣列
+        state_obs_mean = torch.as_tensor(
+            PreprocessCfg.OBS_MEAN,
+            device=agent.device,
+            dtype=torch.float32,
+        ).cpu().numpy()
+
+        state_obs_std = torch.as_tensor(
+            PreprocessCfg.OBS_STD,
+            device=agent.device,
+            dtype=torch.float32,
+        ).cpu().numpy()
+
+        # 3. 手動跑前 5 步來觀察
+        for i in range(5):
+            print(f"\n--- [Test Loop] Step {i} ---")
+            
+            # ==========================================
+            # 🛑 [修改處] 絕對精準的 env 0 數值驗證
+            # ==========================================
+            # 1. 確保只抓取 env 0 的觀測值
+            if isinstance(test_obs, dict) and "policy" in test_obs:
+                obs_env0 = test_obs["policy"][0]
+            else:
+                obs_env0 = test_obs[0]
+            
+            # 2. 拉回 CPU 並轉成 float32 (雙精度)，消滅 GPU 平行運算與 float32 的累積誤差
+            obs_env0_precise = torch.tensor(obs_env0, dtype=torch.float32)
+            
+            # 3. 計算 Sum 與 Std (明確指定 unbiased=False 消除版本差異)
+            obs_sum = obs_env0_precise.sum().item()
+            obs_std = obs_env0_precise.std(unbiased=False).item()
+            print(f"🚨 [RL env0] 觀測值 (obs_env0): {obs_env0_precise.cpu().numpy()}") # normalize
+            print(f"🚨 [RL env0] 觀測值總和 (Sum): {obs_sum:.8f}")
+            print(f"🚨 [RL env0] 觀測值變異 (Std): {obs_std:.8f}")
+            # ==========================================
+            
+            # 重點：deterministic=True 會要求 PPO 直接輸出 Mean，不加任何探索噪音！
+            action, _ = agent.predict(test_obs, deterministic=True)
+            
+            # 將無噪音的 Action 送回環境
+            test_obs, rewards, dones, infos = env.step(action)
+            
+        print("\n" + "="*50)
+        print("🛑 嚴格比對測試結束。準備中止程式。")
+        print("="*50)
+        
+        # 測試完畢直接中止，先不要進入後面的 agent.learn()
+        sys.exit(0)
+
+        ############################
     
     except AttributeError as e:
         print("==========================================================")

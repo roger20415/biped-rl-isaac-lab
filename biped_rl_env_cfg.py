@@ -3,6 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -16,7 +17,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass
 
 from . import mdp
-from config import Config
+from isaaclab_tasks.manager_based.biped_rl.training_config import TrainingConfig
 
 ##
 # Pre-defined configs
@@ -52,6 +53,7 @@ class BipedRlSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
+    #{ENV_REGEX_NS} = "/World/envs/env_.*"
     robot: ArticulationCfg = BIPED_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
    
     # lights
@@ -146,6 +148,61 @@ class ObservationsCfg:
                 "std": PreprocessCfg.OBS_STD[21:32].tolist(),
             }
         )
+
+        # baselink_W_height = ObsTerm(
+        #     func=mdp.get_norm_vector,
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+        #         "getter" : mdp.base_pos_z,
+        #         "mean": [0],
+        #         "std": [1],
+        #     }
+        # )
+        # baselink_W_euler_xyz = ObsTerm(
+        #     func=mdp.get_norm_euler_W_xyz,
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+        #         "mean": [0, 0, 0],
+        #         "std": [1, 1, 1],
+        #     }
+        # )
+        # baselink_lin_vel = ObsTerm(
+        #     func=mdp.get_norm_vector,
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+        #         "getter": mdp.root_lin_vel_w,
+        #         "mean": [0, 0, 0],
+        #         "std": [1, 1, 1],
+        #     }
+        # )
+        # baselink_ang_vel = ObsTerm(
+        #     func=mdp.get_norm_vector,
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
+        #         "getter": mdp.root_ang_vel_w,
+        #         "mean": [0, 0, 0],
+        #         "std": [1, 1, 1],
+        #     }
+        # )
+        # joint_pos = ObsTerm(
+        #     func=mdp.get_norm_vector,
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
+        #         "getter": mdp.joint_pos_rel,
+        #         "mean": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #         "std": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        #     }
+        # )
+        # joint_vel = ObsTerm(
+        #     func=mdp.get_norm_vector,
+        #     params={
+        #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
+        #         "getter": mdp.joint_vel_rel,
+        #         "mean": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #         "std": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+        #     }
+        # )
+
         l_foot_contact = ObsTerm(
             func=mdp.has_foot_contact,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["l_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
@@ -222,15 +279,8 @@ class RewardsCfg:
     # TODO: modify reward weights
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
-    move_forward = RewTerm(
-            # TODO: should be modified to biped v3
-            func=mdp.forward_velocity_reward,
-            weight=1.0,
-            params={
-                "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]), 
-                "nowhere_penalty_weight": 0.2
-            }
-        )
+
+    # TODO: implement more reward terms
 
 
 @configclass
@@ -257,7 +307,7 @@ class TerminationsCfg:
 @configclass
 class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     # Scene settings
-    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=10, env_spacing=0.2)
+    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=1, env_spacing=0.2)
     # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -267,9 +317,9 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
 
     state_history_length: int = 2
-    state_dim: int = Config.STATE_DIM
+    state_dim: int = TrainingConfig.STATE_DIM
     action_history_length: int = 2
-    action_dim: int = Config.ACTION_DIM
+    action_dim: int = TrainingConfig.ACTION_DIM
 
     # Post initialization
     def __post_init__(self) -> None:

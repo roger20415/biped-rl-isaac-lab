@@ -6,7 +6,7 @@ from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.sim import UsdFileCfg
 
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-USD_PATH = os.path.join(CURRENT_DIR, "biped_v3.usd")
+USD_PATH = os.path.join(CURRENT_DIR, "biped_v3-IsaacLab.usd")
 
 
 def get_optimized_actuators_cfg() -> dict:
@@ -44,7 +44,8 @@ BIPED_CFG = ArticulationCfg(
     ),
 
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(0.0, 0.0, 0.0239),
+        # TODO
+        pos=(0.0, 0.0, 0.0237), # must be the same as Isaac Sim
     ),
 
     actuators=get_optimized_actuators_cfg(),

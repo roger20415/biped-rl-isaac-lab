@@ -2,6 +2,8 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
+# python sb3/train.py --task=Isaac-Biped-Rl-v0 --headless
+# python sb3/inject_bc_train.py --task=Isaac-Biped-Rl-v0 --headless
 
 
 """Script to train RL agent with Stable Baselines3."""

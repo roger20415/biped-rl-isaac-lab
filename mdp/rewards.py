@@ -22,6 +22,7 @@ import torch
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.envs import ManagerBasedRLEnv
 
+# TODO: update for biped v3
 def forward_velocity_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg,
                      nowhere_penalty_weight: float = 0.2) -> torch.Tensor:
     
