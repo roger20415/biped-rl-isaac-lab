@@ -78,17 +78,17 @@ def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshol
     return contact
 
 def get_past_state(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
-    if not hasattr(env, "custom_state_history"):
+    if not hasattr(env, "state_history"):
         return torch.zeros((env.num_envs, TrainingConfig.STATE_DIM), device=env.device)
     idx = -step_back
-    return env.custom_state_history[:, idx, :].clone()
+    return env.state_history[:, idx, :].clone()
 
 def get_past_action(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
-    if not hasattr(env, "custom_action_history"):
+    if not hasattr(env, "action_history"):
         return torch.zeros((env.num_envs, TrainingConfig.ACTION_DIM), device=env.device, dtype=torch.float32)
     
     idx = -step_back 
-    return env.custom_action_history[:, idx, :].clone()
+    return env.action_history[:, idx, :].clone()
 
 def get_phase(env: ManagerBasedRLEnv) -> torch.Tensor:
     # TODO code review here

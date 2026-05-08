@@ -1,38 +1,34 @@
 import torch
 from isaaclab.envs import ManagerBasedRLEnv
-from pathlib import Path
 from .biped_rl_env_cfg import BipedRlEnvCfg
 from .training_config import TrainingConfig
 from .bc.preprocess_cfg import PreprocessCfg
 from . import mdp
-import pandas as pd
-import torch
+# TODO review and check
 
 
 class BipedRlEnv(ManagerBasedRLEnv):
 
     def __init__(self, cfg: BipedRlEnvCfg, **kwargs):
-
         super().__init__(cfg, **kwargs)
 
-        excel_path = "./obs_for_rl_test.csv" 
-        try:
-            df = pd.read_csv(excel_path, header=None, sep=",")
-            
-            self.dummy_obs_tensor = torch.tensor(df.values, dtype=torch.float32, device=self.device)
-            self.dummy_obs_length = len(self.dummy_obs_tensor)
-            self.dummy_step_idx = 0
-            print(f"✅ [Debug] 成功讀取 Excel 觀測值，共 {self.dummy_obs_length} 筆資料。")
-        except Exception as e:
-            print(f"❌ [Debug] 無法讀取 Excel: {e}")
-            self.dummy_obs_tensor = None
+        self.state_history = torch.zeros(
+            (self.num_envs, self.cfg.state_history_length, self.cfg.state_dim),
+            device=self.device,
+            dtype=torch.float32
+        )
+
+        self.action_history = torch.zeros(
+            (self.num_envs, self.cfg.action_history_length, self.cfg.action_dim), 
+            device=self.device, 
+            dtype=torch.float32
+        )
 
         self._state_obs_mean = torch.as_tensor(
             PreprocessCfg.OBS_MEAN,
             device=self.device,
             dtype=torch.float32,
         )
-
         self._state_obs_std = torch.as_tensor(
             PreprocessCfg.OBS_STD,
             device=self.device,
@@ -45,114 +41,186 @@ class BipedRlEnv(ManagerBasedRLEnv):
             dtype=torch.float32,
         )
 
-    def reset(self, env_ids: torch.Tensor | None = None, seed: int | None = None, options: dict | None = None) -> tuple[torch.Tensor, dict]:
-        # 1. 先執行預設的 reset 來更新物理引擎狀態，並取得尚未_state_obs_meany 的 obs
-        obs, extras = super().reset(env_ids, seed, options)
-        
-        # ... (這裡保留你原本 history reset 的邏輯，如果有的話) ...
-
-        # ---------------------------------------------------------
-        # [修改處：重置時注入第一筆 Excel 資料，並將其正規化]
-        # ---------------------------------------------------------
-        if self.dummy_obs_tensor is not None:
-            self.dummy_step_idx = 0 # 重置時，將索引歸零
-            dummy_obs = self.dummy_obs_tensor[self.dummy_step_idx] # 這是 Excel 裡的「未正規化」真實數值
-            
-            # [提示：為了讓模型看得懂，我們必須將 Excel 的數值正規化]
-            normalized_dummy_obs = dummy_obs.clone()
-            sd = self.cfg.state_dim
-            ad = self.cfg.action_dim
-            
-            # 針對前 34*3 維的 State 進行正規化: (x - mean) / std
-            normalized_dummy_obs[0:sd] = (dummy_obs[0:sd] - self._state_obs_mean) / self._state_obs_std
-            normalized_dummy_obs[sd:2*sd] = (dummy_obs[sd:2*sd] - self._state_obs_mean) / self._state_obs_std
-            normalized_dummy_obs[2*sd:3*sd] = (dummy_obs[2*sd:3*sd] - self._state_obs_mean) / self._state_obs_std
-            
-            # 針對後 11*2 維的 Action history 進行正規化: x / scale
-            a_start = 3 * sd
-            normalized_dummy_obs[a_start:a_start+ad] = dummy_obs[a_start:a_start+ad] / self._action_scales
-            normalized_dummy_obs[a_start+ad:a_start+2*ad] = dummy_obs[a_start+ad:a_start+2*ad] / self._action_scales
-            
-            # 將 1D 的「已正規化」dummy_obs 擴展以符合 num_envs 的維度
-            if isinstance(obs, dict) and "policy" in obs:
-                obs["policy"][:] = normalized_dummy_obs.unsqueeze(0).expand(self.num_envs, -1)
-            else:
-                obs[:] = normalized_dummy_obs.unsqueeze(0).expand(self.num_envs, -1)
-                
-            print(f"[Debug] Reset 觸發，已注入第 0 筆 Excel 觀測值 (並已完成正規化轉換)")
-
-        return obs, extras
-
-
     def step(self, action: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, dict]:
-        """
-        Step the environment and inject the subsequent observations from the dataset.
-        """
-        # ---------------------------------------------------------
-        # [修改處：印出未正規化的 Observation 與 Action]
-        # ---------------------------------------------------------
-        if self.dummy_obs_tensor is not None:
-            print(f"\n{'='*40}")
-            print(f"Step Index: {self.dummy_step_idx}")
-            
-            # dummy_obs 來自 Excel，本身就是未正規化的數值
-            dummy_obs = self.dummy_obs_tensor[self.dummy_step_idx]
-            # action 是模型輸出的，是已正規化的數值
-            a_t = action[0]
 
-            # [提示：擷取當前未正規化的 State S(t)]
-            s_t_unnormalized = dummy_obs[2 * self.cfg.state_dim:3 * self.cfg.state_dim]
-            
-            # [提示：將模型輸出的 Action 反正規化，還原為真實物理量]
-            a_t_denormalized = a_t * self._action_scales
-
-            def _format_rows(values: list[float], row_size: int = 5, precision: int = 6) -> str:
-                rows = []
-                for i in range(0, len(values), row_size):
-                    chunk = values[i : i + row_size]
-                    rows.append(" ".join(f"{v:.{precision}f}" for v in chunk))
-                return "\n".join(rows)
-
-            print("Observation S(t) (Input) [Unnormalized]:")
-            print(_format_rows(s_t_unnormalized.tolist(), row_size=5))
-            
-            print("\nAction (Output) [Unnormalized]:")
-            print(_format_rows(a_t_denormalized.tolist(), row_size=5))
-            print(f"{'='*40}\n")
-
-        # 1. 執行底層 step
+        #action = self._apply_phase0_action_mask(action)
+        self._update_action_history_normal(action)
+        #action = torch.clamp(action, min=-1.0, max=1.0)
+        self._print_policy_action(action)
+        print("Stepping environment with action now")
         obs, rewards, dones, truncated, extras = super().step(action)
+        print("dones:", dones)
+        self._print_policy_obs_partitions(obs)
 
-        # ---------------------------------------------------------
-        # [修改處：將 Excel 的資料正規化後，強制替換下一步的 obs]
-        # ---------------------------------------------------------
-        if self.dummy_obs_tensor is not None:
-            # 準備下一筆資料的索引
-            self.dummy_step_idx = (self.dummy_step_idx + 1) % self.dummy_obs_length
-            dummy_obs = self.dummy_obs_tensor[self.dummy_step_idx]
+        if isinstance(obs, dict) and "policy" in obs:
+            self._current_state = obs["policy"][:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim]
+        else:
+            self._current_state = obs[:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim]
 
-            # [提示：再次執行正規化轉換，確保餵給 Policy 的是正規化後的數值]
-            normalized_dummy_obs = dummy_obs.clone()
-            sd = self.cfg.state_dim
-            ad = self.cfg.action_dim
-            
-            # State 正規化
-            normalized_dummy_obs[0:sd] = (dummy_obs[0:sd] - self._state_obs_mean) / self._state_obs_std
-            normalized_dummy_obs[sd:2*sd] = (dummy_obs[sd:2*sd] - self._state_obs_mean) / self._state_obs_std
-            normalized_dummy_obs[2*sd:3*sd] = (dummy_obs[2*sd:3*sd] - self._state_obs_mean) / self._state_obs_std
-            
-            # Action 正規化
-            a_start = 3 * sd
-            normalized_dummy_obs[a_start:a_start+ad] = dummy_obs[a_start:a_start+ad] / self._action_scales
-            normalized_dummy_obs[a_start+ad:a_start+2*ad] = dummy_obs[a_start+ad:a_start+2*ad] / self._action_scales
-
-            if isinstance(obs, dict) and "policy" in obs:
-                obs["policy"][:] = normalized_dummy_obs.unsqueeze(0).expand(self.num_envs, -1)
-            else:
-                obs[:] = normalized_dummy_obs.unsqueeze(0).expand(self.num_envs, -1)
-
-            # 強制擋掉 dones，避免物理引擎出界導致強制重置而打斷連續測試
-            dones[:] = False
-            truncated[:] = False
+        self._update_state_history_normal(self._current_state, dones)
+        #self._reset_history_buffers_on_dones(obs, dones, self._current_state)
 
         return obs, rewards, dones, truncated, extras
+
+    def reset(self, env_ids: torch.Tensor | None = None, seed: int | None = None, options: dict | None = None) -> tuple[torch.Tensor, dict]:
+
+        obs, extras = super().reset(env_ids=env_ids, seed=seed, options=options)
+        if isinstance(obs, dict) and "policy" in obs:
+            self._current_state = obs["policy"][:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim].clone()
+        else:
+            self._current_state = obs[:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim].clone()
+
+        if env_ids is None:
+            self.state_history[:] = self._current_state.unsqueeze(1).expand_as(self.state_history)
+            self.action_history.zero_()
+        else:
+            print(f"Resetting environments with IDs: {env_ids.tolist()}")
+            s_0 = self._current_state[env_ids]
+            self.state_history[env_ids] = s_0.unsqueeze(1).expand(-1, self.cfg.state_history_length, -1)
+            self.action_history[env_ids] = 0.0
+
+        if isinstance(obs, dict) and "policy" in obs:
+            if env_ids is None:
+                obs["policy"][:, 0 : self.cfg.state_dim] = self._current_state
+                obs["policy"][:, self.cfg.state_dim : 2 * self.cfg.state_dim] = self._current_state
+            else:
+                obs["policy"][env_ids, 0 : self.cfg.state_dim] = s_0
+                obs["policy"][env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
+        else:
+            if env_ids is None:
+                obs[:, 0 : self.cfg.state_dim] = self._current_state
+                obs[:, self.cfg.state_dim : 2 * self.cfg.state_dim] = self._current_state
+            else:
+                obs[env_ids, 0 : self.cfg.state_dim] = s_0
+                obs[env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
+
+        self._print_policy_obs_partitions(obs)
+
+        # Denormalize history buffers for printing
+        denorm_state_history = self.state_history * self._state_obs_std + self._state_obs_mean
+        denorm_action_history = self.action_history * self._action_scales
+        print("self.state_history (denormalized)\n", denorm_state_history)
+        print("self.action_history (denormalized)\n", denorm_action_history)
+
+        print("==========Environment reset completed==========")
+        return obs, extras
+    
+    def _apply_phase0_action_mask(self, action: torch.Tensor, tolerance: float = 1e-10) -> torch.Tensor:
+        if isinstance(self.obs_buf, dict) and "policy" in self.obs_buf:
+            prev_obs = self.obs_buf["policy"]
+        else:
+            prev_obs = self.obs_buf
+        mask = torch.abs(prev_obs[:, -1]) < tolerance
+
+        if mask.any():
+            action[mask, 0] = 0.0
+            action[mask, 2:5] = 0.0
+            action[mask, 7:10] = 0.0
+
+            action[mask, 1] = action[mask, 5]
+            action[mask, 6] = action[mask, 5]
+            action[mask, 10] = action[mask, 5]
+
+        return action
+
+    def _print_policy_obs_partitions(self, obs: torch.Tensor | dict) -> None:
+        if isinstance(obs, dict) and "policy" in obs:
+            policy_obs = obs["policy"][0]
+        else:
+            policy_obs = obs[0]
+
+        print_denormalized = True
+
+        s_t2 = policy_obs[0:TrainingConfig.STATE_DIM]
+        s_t1 = policy_obs[TrainingConfig.STATE_DIM:2 * TrainingConfig.STATE_DIM]
+        s_t = policy_obs[2 * TrainingConfig.STATE_DIM:3 * TrainingConfig.STATE_DIM]
+        a_t2 = policy_obs[3 * TrainingConfig.STATE_DIM:3 * TrainingConfig.STATE_DIM + TrainingConfig.ACTION_DIM]
+        a_t1 = policy_obs[3 * TrainingConfig.STATE_DIM + TrainingConfig.ACTION_DIM:3 * TrainingConfig.STATE_DIM + 2 * TrainingConfig.ACTION_DIM]
+
+        if print_denormalized:
+            s_t2 = s_t2 * self._state_obs_std + self._state_obs_mean
+            s_t1 = s_t1 * self._state_obs_std + self._state_obs_mean
+            s_t = s_t * self._state_obs_std + self._state_obs_mean
+            a_t2 = a_t2 * self._action_scales
+            a_t1 = a_t1 * self._action_scales
+
+        def _format_rows(values: list[float], row_size: int = 5, precision: int = 6) -> str:
+            rows = []
+            for i in range(0, len(values), row_size):
+                chunk = values[i : i + row_size]
+                rows.append(" ".join(f"{v:.{precision}f}" for v in chunk))
+            return "\n".join(rows)
+
+        print("Env 0 Policy Obs Partitions:")
+        print("S(t-2):")
+        print(_format_rows(s_t2.tolist(), row_size=5))
+        print("S(t-1):")
+        print(_format_rows(s_t1.tolist(), row_size=5))
+        print("S(t):")
+        print(_format_rows(s_t.tolist(), row_size=5))
+        print("A(t-2):")
+        print(_format_rows(a_t2.tolist(), row_size=5))
+        print("A(t-1):")
+        print(_format_rows(a_t1.tolist(), row_size=5))
+        print("phase")
+        print(f"{policy_obs[-1]:.3f}")
+        print("\n")
+
+    def _print_policy_action(self, action: torch.Tensor) -> None:
+
+        print_denormalized = True
+
+        a_t = action[0]
+        if print_denormalized:
+            a_t = a_t * self._action_scales
+
+        def _format_rows(values: list[float], row_size: int = 5, precision: int = 6) -> str:
+            rows = []
+            for i in range(0, len(values), row_size):
+                chunk = values[i : i + row_size]
+                rows.append(" ".join(f"{v:.{precision}f}" for v in chunk))
+            return "\n".join(rows)
+
+        print("Env 0 Action:")
+        print(_format_rows(a_t.tolist(), row_size=5))
+        print("\n")
+
+    def _reset_history_buffers_on_dones(self, obs: torch.Tensor | dict, dones: torch.Tensor, current_state: torch.Tensor) -> None:        
+
+        if not torch.any(dones):
+            return
+        
+        reset_env_ids = dones.nonzero(as_tuple=False).squeeze(-1)
+
+        s_0 = current_state[reset_env_ids]
+        
+        self.state_history[reset_env_ids] = s_0.unsqueeze(1).expand(-1, self.cfg.state_history_length, -1)
+        self.action_history[reset_env_ids] = 0.0
+        action_start_idx = 3 * self.cfg.state_dim
+        
+        if isinstance(obs, dict) and "policy" in obs:
+            obs["policy"][reset_env_ids, 0 : self.cfg.state_dim] = s_0
+            obs["policy"][reset_env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
+
+            obs["policy"][reset_env_ids, action_start_idx : action_start_idx + self.cfg.action_dim] = 0.0
+            obs["policy"][reset_env_ids, action_start_idx + self.cfg.action_dim : action_start_idx + 2 * self.cfg.action_dim] = 0.0
+        else:
+            obs[reset_env_ids, 0 : self.cfg.state_dim] = s_0
+            obs[reset_env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
+
+            obs[reset_env_ids, action_start_idx : action_start_idx + self.cfg.action_dim] = 0.0
+            obs[reset_env_ids, action_start_idx + self.cfg.action_dim : action_start_idx + 2 * self.cfg.action_dim] = 0.0
+
+        print(f"Reset history buffers for {len(reset_env_ids)} environments: {reset_env_ids.tolist()}")
+
+    def _update_state_history_normal(self, current_state: torch.Tensor, dones: torch.Tensor) -> None:
+        
+        running_env_ids = (~dones).nonzero(as_tuple=False).squeeze(-1)
+        if len(running_env_ids) > 0:
+            self.state_history[running_env_ids, 0:-1, :] = self.state_history[running_env_ids, 1:, :].clone()
+            self.state_history[running_env_ids, -1, :] = current_state[running_env_ids].clone()
+
+    def _update_action_history_normal(self, action: torch.Tensor) -> None:
+        
+        self.action_history[:, 0:-1, :] = self.action_history[:, 1:, :].clone()
+        self.action_history[:, -1, :] = action.clone()
