@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import torch
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -34,43 +33,28 @@ JOINTS: list[str] = ["sacrum",
                      "r_calf", "r_ankle",
                      "r_foot"]
 FOOT_CONTACT_THRESHOLD: float = 0.0014  # meters # must be consistent with Isaac Sim
-
 ACTION_SCALES = mdp.load_action_scales()
-
-##
-# Scene definition
-##
 
 
 @configclass
 class BipedRlSceneCfg(InteractiveSceneCfg):
-    """Configuration for a biped robot scene."""
 
-    # ground plane
     ground = AssetBaseCfg(
         prim_path="/World/ground",
         spawn=sim_utils.GroundPlaneCfg(size=(100.0, 100.0)),
     )
 
-    # robot
     #{ENV_REGEX_NS} = "/World/envs/env_.*"
     robot: ArticulationCfg = BIPED_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
    
-    # lights
     dome_light = AssetBaseCfg(
         prim_path="/World/DomeLight",
         spawn=sim_utils.DomeLightCfg(color=(0.9, 0.9, 0.9), intensity=500.0),
     )
 
 
-##
-# MDP settings
-##
-
-
 @configclass
 class ActionsCfg:
-    """Action specifications for the MDP."""
     (sacrum_position, l_hip_position, l_thigh_position, l_calf_position, l_ankle_position, l_foot_position,
     r_hip_position, r_thigh_position, r_calf_position, r_ankle_position, r_foot_position) = [
         mdp.JointPositionActionCfg(asset_name="robot", joint_names=JOINTS[i], scale=float(ACTION_SCALES[i])) for i in range(len(JOINTS))
@@ -78,11 +62,9 @@ class ActionsCfg:
 
 @configclass
 class ObservationsCfg:
-    """Observation specifications for the MDP."""
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
 
         state_t_minus_2 = ObsTerm(
             func=mdp.get_past_state,
@@ -148,61 +130,6 @@ class ObservationsCfg:
                 "std": PreprocessCfg.OBS_STD[21:32].tolist(),
             }
         )
-
-        # baselink_W_height = ObsTerm(
-        #     func=mdp.get_norm_vector,
-        #     params={
-        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
-        #         "getter" : mdp.base_pos_z,
-        #         "mean": [0],
-        #         "std": [1],
-        #     }
-        # )
-        # baselink_W_euler_xyz = ObsTerm(
-        #     func=mdp.get_norm_euler_W_xyz,
-        #     params={
-        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
-        #         "mean": [0, 0, 0],
-        #         "std": [1, 1, 1],
-        #     }
-        # )
-        # baselink_lin_vel = ObsTerm(
-        #     func=mdp.get_norm_vector,
-        #     params={
-        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
-        #         "getter": mdp.root_lin_vel_w,
-        #         "mean": [0, 0, 0],
-        #         "std": [1, 1, 1],
-        #     }
-        # )
-        # baselink_ang_vel = ObsTerm(
-        #     func=mdp.get_norm_vector,
-        #     params={
-        #         "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
-        #         "getter": mdp.root_ang_vel_w,
-        #         "mean": [0, 0, 0],
-        #         "std": [1, 1, 1],
-        #     }
-        # )
-        # joint_pos = ObsTerm(
-        #     func=mdp.get_norm_vector,
-        #     params={
-        #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
-        #         "getter": mdp.joint_pos_rel,
-        #         "mean": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        #         "std": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        #     }
-        # )
-        # joint_vel = ObsTerm(
-        #     func=mdp.get_norm_vector,
-        #     params={
-        #         "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
-        #         "getter": mdp.joint_vel_rel,
-        #         "mean": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
-        #         "std": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-        #     }
-        # )
-
         l_foot_contact = ObsTerm(
             func=mdp.has_foot_contact,
             params={"asset_cfg": SceneEntityCfg("robot", body_names=["l_foot_1"]), "threshold": FOOT_CONTACT_THRESHOLD}
@@ -239,7 +166,6 @@ class ObservationsCfg:
 
 @configclass
 class EventCfg:
-    """Configuration for events."""
 
     reset_root = EventTerm(
         func=mdp.reset_root_state_uniform,
@@ -274,18 +200,15 @@ class EventCfg:
 
 @configclass
 class RewardsCfg:
-    """Reward terms for the MDP."""
 
     # TODO: modify reward weights
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
 
-    # TODO: implement more reward terms
-
 
 @configclass
 class TerminationsCfg:
-    """Termination terms for the MDP."""
+
     # TODO: modify termination conditions
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
@@ -299,20 +222,13 @@ class TerminationsCfg:
     )
 
 
-##
-# Environment configuration
-##
-
-
 @configclass
 class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
-    # Scene settings
+
     scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=1, env_spacing=0.2)
-    # Basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     events: EventCfg = EventCfg()
-    # MDP settings
     rewards: RewardsCfg = RewardsCfg()
     terminations: TerminationsCfg = TerminationsCfg()
 
@@ -321,14 +237,10 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     action_history_length: int = 2
     action_dim: int = TrainingConfig.ACTION_DIM
 
-    # Post initialization
     def __post_init__(self) -> None:
-        """Post initialization."""
-        # general settings
+
         self.episode_length_s = 30.0  # seconds
-        # viewer settings
         self.viewer.eye = (8.0, 0.0, 5.0)
-        # simulation settings
         self.sim.dt = 1/120
         target_control_dt = 0.05
         self.decimation = int(round(target_control_dt / self.sim.dt))
