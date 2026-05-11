@@ -45,7 +45,7 @@ BIPED_CFG = ArticulationCfg(
 
     init_state=ArticulationCfg.InitialStateCfg(
         # TODO
-        pos=(0.0, 0.0, 0.0237), # must be the same as Isaac Sim
+        pos=(0.0, 0.0, 0.0237), # must be the same as Isaac Sim (0.0, 0.0, 0.0237)
     ),
 
     actuators=get_optimized_actuators_cfg(),

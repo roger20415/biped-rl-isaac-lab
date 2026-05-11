@@ -45,11 +45,14 @@ class BipedRlEnv(ManagerBasedRLEnv):
 
         #action = self._apply_phase0_action_mask(action)
         self._update_action_history_normal(action)
-        #action = torch.clamp(action, min=-1.0, max=1.0)
+        action = torch.clamp(action, min=-1.5, max=1.5)
         self._print_policy_action(action)
         print("Stepping environment with action now")
         obs, rewards, dones, truncated, extras = super().step(action)
         print("dones:", dones)
+
+        done_env_ids = torch.where(dones)[0]
+        obs = self._reset_obs_and_history_on_dones(env_ids=done_env_ids, obs=obs)
         self._print_policy_obs_partitions(obs)
 
         if isinstance(obs, dict) and "policy" in obs:
@@ -65,35 +68,7 @@ class BipedRlEnv(ManagerBasedRLEnv):
     def reset(self, env_ids: torch.Tensor | None = None, seed: int | None = None, options: dict | None = None) -> tuple[torch.Tensor, dict]:
 
         obs, extras = super().reset(env_ids=env_ids, seed=seed, options=options)
-        if isinstance(obs, dict) and "policy" in obs:
-            self._current_state = obs["policy"][:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim].clone()
-        else:
-            self._current_state = obs[:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim].clone()
-
-        if env_ids is None:
-            self.state_history[:] = self._current_state.unsqueeze(1).expand_as(self.state_history)
-            self.action_history.zero_()
-        else:
-            print(f"Resetting environments with IDs: {env_ids.tolist()}")
-            s_0 = self._current_state[env_ids]
-            self.state_history[env_ids] = s_0.unsqueeze(1).expand(-1, self.cfg.state_history_length, -1)
-            self.action_history[env_ids] = 0.0
-
-        if isinstance(obs, dict) and "policy" in obs:
-            if env_ids is None:
-                obs["policy"][:, 0 : self.cfg.state_dim] = self._current_state
-                obs["policy"][:, self.cfg.state_dim : 2 * self.cfg.state_dim] = self._current_state
-            else:
-                obs["policy"][env_ids, 0 : self.cfg.state_dim] = s_0
-                obs["policy"][env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
-        else:
-            if env_ids is None:
-                obs[:, 0 : self.cfg.state_dim] = self._current_state
-                obs[:, self.cfg.state_dim : 2 * self.cfg.state_dim] = self._current_state
-            else:
-                obs[env_ids, 0 : self.cfg.state_dim] = s_0
-                obs[env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
-
+        obs = self._reset_obs_and_history_on_dones(env_ids=None, obs=obs)
         self._print_policy_obs_partitions(obs)
 
         # Denormalize history buffers for printing
@@ -185,34 +160,6 @@ class BipedRlEnv(ManagerBasedRLEnv):
         print(_format_rows(a_t.tolist(), row_size=5))
         print("\n")
 
-    def _reset_history_buffers_on_dones(self, obs: torch.Tensor | dict, dones: torch.Tensor, current_state: torch.Tensor) -> None:        
-
-        if not torch.any(dones):
-            return
-        
-        reset_env_ids = dones.nonzero(as_tuple=False).squeeze(-1)
-
-        s_0 = current_state[reset_env_ids]
-        
-        self.state_history[reset_env_ids] = s_0.unsqueeze(1).expand(-1, self.cfg.state_history_length, -1)
-        self.action_history[reset_env_ids] = 0.0
-        action_start_idx = 3 * self.cfg.state_dim
-        
-        if isinstance(obs, dict) and "policy" in obs:
-            obs["policy"][reset_env_ids, 0 : self.cfg.state_dim] = s_0
-            obs["policy"][reset_env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
-
-            obs["policy"][reset_env_ids, action_start_idx : action_start_idx + self.cfg.action_dim] = 0.0
-            obs["policy"][reset_env_ids, action_start_idx + self.cfg.action_dim : action_start_idx + 2 * self.cfg.action_dim] = 0.0
-        else:
-            obs[reset_env_ids, 0 : self.cfg.state_dim] = s_0
-            obs[reset_env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
-
-            obs[reset_env_ids, action_start_idx : action_start_idx + self.cfg.action_dim] = 0.0
-            obs[reset_env_ids, action_start_idx + self.cfg.action_dim : action_start_idx + 2 * self.cfg.action_dim] = 0.0
-
-        print(f"Reset history buffers for {len(reset_env_ids)} environments: {reset_env_ids.tolist()}")
-
     def _update_state_history_normal(self, current_state: torch.Tensor, dones: torch.Tensor) -> None:
         
         running_env_ids = (~dones).nonzero(as_tuple=False).squeeze(-1)
@@ -224,3 +171,41 @@ class BipedRlEnv(ManagerBasedRLEnv):
         
         self.action_history[:, 0:-1, :] = self.action_history[:, 1:, :].clone()
         self.action_history[:, -1, :] = action.clone()
+
+    def _reset_obs_and_history_on_dones(self, env_ids: torch.Tensor, obs: torch.Tensor | dict) -> torch.Tensor | dict:
+        
+        if isinstance(obs, dict) and "policy" in obs:
+            self._current_state = obs["policy"][:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim].clone()
+        else:
+            self._current_state = obs[:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim].clone()
+
+        if env_ids is None:
+            self.state_history[:] = self._current_state.unsqueeze(1).expand_as(self.state_history)
+            self.action_history.zero_()
+        else:
+            print(f"Resetting environments with IDs: {env_ids.tolist()}")
+            s_0 = self._current_state[env_ids]
+            self.state_history[env_ids] = s_0.unsqueeze(1).expand(-1, self.cfg.state_history_length, -1)
+            self.action_history[env_ids] = 0.0
+
+        if isinstance(obs, dict):
+            for key, obs_tensor in obs.items():
+                if env_ids is None:
+                    obs_tensor[:, 0 : self.cfg.state_dim] = self._current_state # S(t-2)
+                    obs_tensor[:, self.cfg.state_dim : 2 * self.cfg.state_dim] = self._current_state # S(t-1)
+                    obs_tensor[:, 3 * self.cfg.state_dim:] = 0.0 # A(t-2), A(t-1)
+                else:
+                    obs_tensor[env_ids, 0 : self.cfg.state_dim] = s_0
+                    obs_tensor[env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
+                    obs_tensor[env_ids, 3 * self.cfg.state_dim:] = 0.0
+        else:
+            if env_ids is None:
+                obs[:, 0 : self.cfg.state_dim] = self._current_state
+                obs[:, self.cfg.state_dim : 2 * self.cfg.state_dim] = self._current_state
+                obs[:, 3 * self.cfg.state_dim:] = 0.0
+            else:
+                obs[env_ids, 0 : self.cfg.state_dim] = s_0
+                obs[env_ids, self.cfg.state_dim : 2 * self.cfg.state_dim] = s_0
+                obs[env_ids, 3 * self.cfg.state_dim:] = 0.0
+
+        return obs
