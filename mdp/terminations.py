@@ -57,3 +57,13 @@ def base_height_out_of_manual_limit(
     z_min = torch.amin(z, dim=1)
     z_max = torch.amax(z, dim=1)
     return (z_min < low) | (z_max > high)
+
+
+def state_is_invalid(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
+
+    asset = env.scene[asset_cfg.name]
+    root_pos_invalid = ~torch.isfinite(asset.data.root_pos_w).all(dim=-1)
+    root_vel_invalid = ~torch.isfinite(asset.data.root_vel_w).all(dim=-1)
+    joint_pos_invalid = ~torch.isfinite(asset.data.joint_pos).all(dim=-1)
+    joint_vel_invalid = ~torch.isfinite(asset.data.joint_vel).all(dim=-1)
+    return root_pos_invalid | root_vel_invalid | joint_pos_invalid | joint_vel_invalid

@@ -220,6 +220,10 @@ class TerminationsCfg:
             "bounds": (0.0210, 0.0280),   # (min_z, max_z) # must be consistent with Isaac Sim
         },
     )
+    nan_explosion_termination = DoneTerm(
+        func=mdp.state_is_invalid,
+        params={"asset_cfg": SceneEntityCfg("robot")}
+    )
 
 
 @configclass
