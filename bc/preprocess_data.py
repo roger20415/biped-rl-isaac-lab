@@ -12,7 +12,7 @@ except NameError:
 MODE = 'train_data'
 RAW_DATA_DIR = os.path.join(script_dir, MODE, "raw_data")
 OUTPUT_DIR = os.path.join(script_dir, MODE)
-OUTPUT_DATA_PATH = os.path.join(OUTPUT_DIR, "processed_expert_data.npz")
+OUTPUT_DATA_PATH = os.path.join(OUTPUT_DIR, "processed_static_expert_data.npz")
 ACTION_SCALE_PATH = os.path.join(OUTPUT_DIR, "action_scales.npy")
 CLOCK_DIM = 0
 OBS_EULAR_INDICES = [1, 2, 3]

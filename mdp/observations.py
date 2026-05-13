@@ -91,34 +91,4 @@ def get_past_action(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
     return env.action_history[:, idx, :].clone()
 
 def get_phase(env: ManagerBasedRLEnv) -> torch.Tensor:
-    # TODO code review here
-    # 這裡直接使用環境內建的步數紀錄作為時間步 t。
-    # 當環境 reset 時，episode_length_buf 會自動歸零，因此我們不需要寫額外的 reset 邏輯！
-    t = env.episode_length_buf.float()
-    
-    # 預設產生與時間步相同維度的零張量 (對應 Phase 1 的輸出 0.0)
-    phase_out = torch.zeros_like(t)
-    
-    # === 邏輯對應 ===
-    # Phase 1: t < 10 (保持為 0.0，不需要額外操作)
-    
-    # Phase 2: 10 <= t < 60 
-    # 原邏輯：transition_alpha 每次加 0.02，達到 1.0 時進入 Phase 3 (相當於經過 50 步)
-    phase_2_mask = (t >= 10) & (t < 60)
-    phase_out[phase_2_mask] = 1.0 / 6.0
-    
-    # Phase 3: t >= 60
-    # 原邏輯：每 70 步 (3.5 / 0.05) 是一個 stage，滿 4 個 stage (280 步) 循環一次
-    phase_3_mask = (t >= 60)
-    
-    # 扣除前兩個 Phase 用掉的 60 步，取得進入 Phase 3 後的相對時間
-    t_p3 = t[phase_3_mask] - 60 
-    
-    # 計算 continuous_stage (0, 1, 2, 3) 循環
-    continuous_stage = (t_p3 % 280) // 70
-    
-    # 套用 Phase 3 的輸出公式
-    phase_out[phase_3_mask] = (2.0 + continuous_stage) / 6.0
-    
-    # 將形狀從 (num_envs,) 轉換為 (num_envs, 1) 以符合 Observation 的維度需求
-    return phase_out.unsqueeze(-1)
+    return torch.zeros((env.num_envs, 1), device=env.device, dtype=torch.float32)

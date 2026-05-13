@@ -104,6 +104,15 @@ MLP_HEAD_WEIGHTS_PATH = "./bc/model/bc_actor_head_weights.pth"
 MLP_BODY_WEIGHTS_PATH = "./bc/model/bc_actor_body_weights.pth"
 
 
+def _validate_state_dict_finite(state_dict: dict, label: str) -> None:
+    invalid_keys = []
+    for key, value in state_dict.items():
+        if torch.is_tensor(value) and not torch.isfinite(value).all():
+            invalid_keys.append(key)
+    if invalid_keys:
+        raise ValueError(f"{label} contains non-finite tensors: {invalid_keys[:5]}")
+
+
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with stable-baselines agent."""
@@ -208,6 +217,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         body_weights = torch.load(MLP_BODY_WEIGHTS_PATH, map_location=agent.device)
         head_weights = torch.load(MLP_HEAD_WEIGHTS_PATH, map_location=agent.device)
 
+        _validate_state_dict_finite(body_weights, "BC body weights")
+        _validate_state_dict_finite(head_weights, "BC head weights")
+
         actor_body_net.load_state_dict(body_weights)
         actor_head_net.load_state_dict(head_weights)
     
@@ -220,8 +232,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print("     pi: [..., ...]")
         print("     vf: [..., ...]")
         print("==========================================================")
+        raise
     except Exception as e:
         print(f"--- [ERROR] Inject Behavior cloning pipeline failed: {e} ---")
+        raise
 
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)

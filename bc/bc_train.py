@@ -75,7 +75,7 @@ if __name__ == "__main__":
         script_dir = os.getcwd()
 
     # file paths
-    EXPERT_DATA_PATH = os.path.join(script_dir, "train_data/processed_expert_data.npz")
+    EXPERT_DATA_PATH = os.path.join(script_dir, "train_data/processed_static_expert_data.npz")
     BODY_WEIGHTS_PATH = os.path.join(script_dir, "model/bc_actor_body_weights.pth")
     HEAD_WEIGHTS_PATH = os.path.join(script_dir, "model/bc_actor_head_weights.pth")
 
