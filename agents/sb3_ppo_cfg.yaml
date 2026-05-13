@@ -18,7 +18,11 @@ policy_kwargs:
     pi: [64, 64]  # policy
     vf: [128, 128] # critic
   squash_output: False
-  log_std_init: -2.0 # keep exploration finite when fine-tuning from BC weights
+  log_std_init: -10.0 # keep exploration finite when fine-tuning from BC weights
+  # for biped project, the best log_std_init
+  # -5.0: strong exploration
+  # -7.5: median exploration
+  # -10.0: weak exploration, strong stablity
                 
 vf_coef: 1.0
 max_grad_norm: 1.0

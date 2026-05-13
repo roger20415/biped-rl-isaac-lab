@@ -244,7 +244,8 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
     def __post_init__(self) -> None:
 
         self.episode_length_s = 30.0  # seconds
-        self.viewer.eye = (8.0, 0.0, 5.0)
+        # Start close to env_0 so the robot is visible at a useful scale.
+        self.viewer.eye = (0.1, -0.1, 0.1)
         self.sim.dt = 1/120
         target_control_dt = 0.05
         self.decimation = int(round(target_control_dt / self.sim.dt))

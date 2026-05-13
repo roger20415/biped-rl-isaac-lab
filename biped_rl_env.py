@@ -46,14 +46,15 @@ class BipedRlEnv(ManagerBasedRLEnv):
         #action = self._apply_phase0_action_mask(action)
         self._update_action_history_normal(action)
         action = torch.clamp(action, min=-1.5, max=1.5)
-        self._print_policy_action(action)
-        print("Stepping environment with action now")
+        #self._print_policy_action(action)
+        #print("Stepping environment with action now")
         obs, rewards, dones, truncated, extras = super().step(action)
-        print("dones:", dones)
+        #print("dones:", dones)
 
         done_env_ids = torch.where(dones)[0]
         obs = self._reset_obs_and_history_on_dones(env_ids=done_env_ids, obs=obs)
-        self._print_policy_obs_partitions(obs)
+        #print(f"Resetting environments with IDs: {done_env_ids.tolist()}")
+        #self._print_policy_obs_partitions(obs)
 
         if isinstance(obs, dict) and "policy" in obs:
             self._current_state = obs["policy"][:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim]
@@ -61,7 +62,6 @@ class BipedRlEnv(ManagerBasedRLEnv):
             self._current_state = obs[:, 2 * self.cfg.state_dim : 3 * self.cfg.state_dim]
 
         self._update_state_history_normal(self._current_state, dones)
-        #self._reset_history_buffers_on_dones(obs, dones, self._current_state)
 
         return obs, rewards, dones, truncated, extras
 
@@ -69,13 +69,13 @@ class BipedRlEnv(ManagerBasedRLEnv):
 
         obs, extras = super().reset(env_ids=env_ids, seed=seed, options=options)
         obs = self._reset_obs_and_history_on_dones(env_ids=None, obs=obs)
-        self._print_policy_obs_partitions(obs)
+        #self._print_policy_obs_partitions(obs)
 
         # Denormalize history buffers for printing
         denorm_state_history = self.state_history * self._state_obs_std + self._state_obs_mean
         denorm_action_history = self.action_history * self._action_scales
-        print("self.state_history (denormalized)\n", denorm_state_history)
-        print("self.action_history (denormalized)\n", denorm_action_history)
+        #print("self.state_history (denormalized)\n", denorm_state_history)
+        #print("self.action_history (denormalized)\n", denorm_action_history)
 
         print("==========Environment reset completed==========")
         return obs, extras
@@ -183,7 +183,6 @@ class BipedRlEnv(ManagerBasedRLEnv):
             self.state_history[:] = self._current_state.unsqueeze(1).expand_as(self.state_history)
             self.action_history.zero_()
         else:
-            print(f"Resetting environments with IDs: {env_ids.tolist()}")
             s_0 = self._current_state[env_ids]
             self.state_history[env_ids] = s_0.unsqueeze(1).expand(-1, self.cfg.state_history_length, -1)
             self.action_history[env_ids] = 0.0
