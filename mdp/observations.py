@@ -91,34 +91,42 @@ def get_past_action(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
     return env.action_history[:, idx, :].clone()
 
 def get_phase(env: ManagerBasedRLEnv) -> torch.Tensor:
-    # TODO code review here
-    # 這裡直接使用環境內建的步數紀錄作為時間步 t。
-    # 當環境 reset 時，episode_length_buf 會自動歸零，因此我們不需要寫額外的 reset 邏輯！
+    """
+    Time-driven phase generator for RL training.
+    Phase 0: ticks 0~50   (hold at 0.0)
+    Phase 1: ticks 50~99 (transition 0.0 -> 0.25 over 50 ticks)
+    Phase 2: ticks 100+  (hold at 0.25)
+    """
+    # 取得當前環境的時間步 (ticks)
     t = env.episode_length_buf.float()
     
-    # 預設產生與時間步相同維度的零張量 (對應 Phase 1 的輸出 0.0)
+    # 預設全為 0.0 (這直接涵蓋了 t < 50 的 Phase 0 情況)
     phase_out = torch.zeros_like(t)
     
-    # === 邏輯對應 ===
-    # Phase 1: t < 10 (保持為 0.0，不需要額外操作)
+    # --- Phase 1: 重心轉移期 (50 <= t < 100) ---
+    # 總共經歷 50 步
+    phase_1_mask = (t >= 50) & (t < 100)
     
-    # Phase 2: 10 <= t < 60 
-    # 原邏輯：transition_alpha 每次加 0.02，達到 1.0 時進入 Phase 3 (相當於經過 50 步)
-    phase_2_mask = (t >= 10) & (t < 60)
-    phase_out[phase_2_mask] = 1.0 / 6.0
+    # 將 t 平移，讓 t_p1 的範圍落在 0.0 ~ 49.0
+    t_p1 = t[phase_1_mask] - 50.0
     
-    # Phase 3: t >= 60
-    # 原邏輯：每 70 步 (3.5 / 0.05) 是一個 stage，滿 4 個 stage (280 步) 循環一次
-    phase_3_mask = (t >= 60)
+    # 計算進度比例 progress (0.0 ~ 0.98) 
+    # (如果想要第 100 步剛好無縫接軌 0.25，除以 50.0 是最完美的平滑插值)
+    progress = t_p1 / 50.0
     
-    # 扣除前兩個 Phase 用掉的 60 步，取得進入 Phase 3 後的相對時間
-    t_p3 = t[phase_3_mask] - 60 
+    # 對應到 phase 的 0.0 ~ 0.25
+    phase_out[phase_1_mask] = 0.25 * progress
     
-    # 計算 continuous_stage (0, 1, 2, 3) 循環
-    continuous_stage = (t_p3 % 280) // 70
+    # --- Phase 2: 轉移完成後維持期 (t >= 100) ---
+    phase_2_mask = (t >= 100)
+    phase_out[phase_2_mask] = 0.25
     
-    # 套用 Phase 3 的輸出公式
-    phase_out[phase_3_mask] = (2.0 + continuous_stage) / 6.0
-    
-    # 將形狀從 (num_envs,) 轉換為 (num_envs, 1) 以符合 Observation 的維度需求
+    # 將形狀從 (num_envs,) 轉換為 (num_envs, 1) 以符合 Observation 維度
     return phase_out.unsqueeze(-1)
+    # t = env.episode_length_buf.float()
+    
+    # # 建立與環境數量相同維度、且全為 0.0 的張量
+    # phase_out = torch.zeros_like(t)
+    
+    # # 將形狀從 (num_envs,) 轉換為 (num_envs, 1) 以符合 Observation 維度
+    # return phase_out.unsqueeze(-1)

@@ -116,7 +116,7 @@ class ObservationsCfg:
             func=mdp.get_norm_vector,
             params={
                 "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
-                "getter": mdp.joint_pos_rel,
+                "getter": mdp.joint_pos,
                 "mean": PreprocessCfg.OBS_MEAN[10:21].tolist(),
                 "std": PreprocessCfg.OBS_STD[10:21].tolist(),
             }
@@ -125,7 +125,7 @@ class ObservationsCfg:
             func=mdp.get_norm_vector,
             params={
                 "asset_cfg": SceneEntityCfg("robot", joint_names=JOINTS),
-                "getter": mdp.joint_vel_rel,
+                "getter": mdp.joint_vel,
                 "mean": PreprocessCfg.OBS_MEAN[21:32].tolist(),
                 "std": PreprocessCfg.OBS_STD[21:32].tolist(),
             }
