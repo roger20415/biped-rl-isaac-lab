@@ -243,8 +243,9 @@ class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self) -> None:
 
-        self.episode_length_s = 30.0  # seconds
-        self.viewer.eye = (0.1, -0.1, 0.1)
+        self.episode_length_s = 5.0  # seconds
+        self.viewer.eye = (0.1, 0.0, 0.025)
+        self.viewer.lookat = (0.0, 0.0, 0.02)
         self.sim.dt = 1/120
         target_control_dt = 0.05
         self.decimation = int(round(target_control_dt / self.sim.dt))
