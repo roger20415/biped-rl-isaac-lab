@@ -64,7 +64,7 @@ if __name__ == "__main__":
     # hyperparameters
     LEARNING_RATE = 1e-3
     BATCH_SIZE = 64
-    EPOCHS =  400
+    EPOCHS =  700
     VALIDATION_SPLIT = 0.05
     RANDOM_SEED = 42
 

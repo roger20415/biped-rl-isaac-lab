@@ -44,7 +44,6 @@ BIPED_CFG = ArticulationCfg(
     ),
 
     init_state=ArticulationCfg.InitialStateCfg(
-        # TODO
         pos=(0.0, 0.0, 0.023701), # must be the same as Isaac Sim (0.0, 0.0, 0.023701)
     ),
 

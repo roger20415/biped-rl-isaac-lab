@@ -209,7 +209,6 @@ class RewardsCfg:
 @configclass
 class TerminationsCfg:
 
-    # TODO: modify termination conditions
     # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
     # (2) Base height out of bounds
@@ -217,7 +216,7 @@ class TerminationsCfg:
         func=mdp.base_height_out_of_manual_limit,
         params={
             "asset_cfg": SceneEntityCfg("robot", body_names=["base_link"]),
-            "bounds": (0.0210, 0.0280),   # (min_z, max_z) # must be consistent with Isaac Sim
+            "bounds": (0.02204255, 0.02614665),   # (min_z, max_z) # (OBS_MAX-OBS_INIT)*1.05+OBS_MAX
         },
     )
     nan_explosion_termination = DoneTerm(

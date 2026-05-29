@@ -4,7 +4,6 @@ from .biped_rl_env_cfg import BipedRlEnvCfg
 from .training_config import TrainingConfig
 from .bc.preprocess_cfg import PreprocessCfg
 from . import mdp
-# TODO review and check
 
 
 class BipedRlEnv(ManagerBasedRLEnv):
