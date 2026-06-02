@@ -91,36 +91,23 @@ def get_past_action(env: ManagerBasedRLEnv, step_back: int) -> torch.Tensor:
     return env.action_history[:, idx, :].clone()
 
 def get_phase(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """
-    Time-driven phase generator for RL training.
-    Phase 0: ticks 0~9    (hold at 0.0)
-    Phase 1: ticks 10~64  (transition 0.0 -> 0.25 over 55 ticks)
-    Phase 2: ticks 65+    (hold at 0.25)
-    """
-    # 取得當前環境的時間步 (ticks)
+
     t = env.episode_length_buf.float()
 
     phase_0_steps = 50.0
     transition_steps = 55.0
     transition_end = phase_0_steps + transition_steps
 
-    # 預設全為 0.0 (這直接涵蓋了 phase 0)
     phase_out = torch.zeros_like(t)
-
-    # --- Phase 1: 重心轉移期 (40 <= t < 95) ---
     phase_1_mask = (t >= phase_0_steps) & (t < transition_end)
 
-    # 將 t 平移，讓 progress 落在 0.0 ~ 1.0
     t_p1 = t[phase_1_mask] - phase_0_steps
     progress = t_p1 / max(transition_steps - 1.0, 1.0)
     progress = torch.clamp(progress, 0.0, 1.0)
 
-    # 對應到 phase 的 0.0 ~ 0.25
     phase_out[phase_1_mask] = 0.25 * progress
 
-    # --- Phase 2: 轉移完成後維持期 (t >= 95) ---
     phase_2_mask = (t >= transition_end)
     phase_out[phase_2_mask] = 0.25
-    
-    # 將形狀從 (num_envs,) 轉換為 (num_envs, 1) 以符合 Observation 維度
+
     return phase_out.unsqueeze(-1)

@@ -8,40 +8,72 @@ from __future__ import annotations
 import torch
 from typing import TYPE_CHECKING
 
-from isaaclab.assets import Articulation
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.math import wrap_to_pi
+import isaaclab.utils.math as math_utils
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
-
-
-import torch
-
-import torch
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.envs import ManagerBasedRLEnv
 
-# TODO: update for biped v3
-def forward_velocity_reward(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg,
-                     nowhere_penalty_weight: float = 0.2) -> torch.Tensor:
-    
+from .config import Config
+from .observations import get_phase
+
+def com_error_reward(
+    env: ManagerBasedRLEnv, 
+    asset_cfg: SceneEntityCfg, 
+    sigma: float = 50000.0  # TODO
+) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
-    body_id = asset_cfg.body_ids[0]
-    current_base_x = asset.data.body_pos_w[:, body_id, 0]
 
-    if "prev_base_x" not in env.extras:
-        env.extras["prev_base_x"] = current_base_x.clone()
+    body_names = [
+        "base_link", "back_1", "sacrum_1", "l_hip_1", "r_hip_1",
+        "l_thigh_1", "r_thigh_1", "l_calf_1", "r_calf_1",
+        "l_ankle_1", "r_ankle_1", "l_foot_1", "r_foot_1"
+    ]
+    body_ids, _ = asset.find_bodies(body_names)
 
-    reset_env_ids = env.reset_buf.nonzero(as_tuple=False).squeeze(-1)
+    baselink_id, _ = asset.find_bodies("base_link")
+    r_foot_id, _ = asset.find_bodies("r_foot_1")
 
-    if len(reset_env_ids) > 0:
-        env.extras["prev_base_x"][reset_env_ids] = current_base_x[reset_env_ids]
+    masses_list = [
+        Config.BASELINK_MASS, Config.BACK_MASS, Config.SACRUM_MASS,
+        Config.HIP_MASS, Config.HIP_MASS,
+        Config.THIGH_MASS, Config.THIGH_MASS,
+        Config.CALF_MASS, Config.CALF_MASS,
+        Config.ANKLE_MASS, Config.ANKLE_MASS,
+        Config.FOOT_MASS, Config.FOOT_MASS
+    ]
 
-    delta_x = current_base_x - env.extras["prev_base_x"]
+    masses_tensor = torch.tensor(masses_list, device=asset.device, dtype=torch.float32).view(1, 13, 1)
+    total_mass = torch.sum(masses_tensor)
+    pos = asset.data.body_pos_w[:, body_ids, :]
+    weighted_sum = torch.sum(pos * masses_tensor, dim=1)
+    p_W_biped_com = weighted_sum / total_mass
+    p_S_biped_com = p_W_biped_com.clone()
+    p_S_biped_com[:, 2] = 0.0
+    p_W_r_foot = asset.data.body_pos_w[:, r_foot_id[0], :]
+    q_W_r_foot = asset.data.body_quat_w[:, r_foot_id[0], :]
+    x_axis = torch.tensor([1.0, 0.0, 0.0], device=asset.device).repeat(env.num_envs, 1)
+    xRFOOT_W_norm = math_utils.quat_rotate(q_W_r_foot, x_axis)
+    xRFOOT_W_norm = torch.nn.functional.normalize(xRFOOT_W_norm, dim=1)
+    p_S_support = p_W_r_foot - Config.FOOT_LINK_X_SEMI_LENGTH * xRFOOT_W_norm
+    p_S_support[:, 2] = 0.0
+    vec_S_com_to_support = p_S_support - p_S_biped_com
+    q_W_baselink = asset.data.body_quat_w[:, baselink_id[0], :]
+    y_axis = torch.tensor([0.0, 1.0, 0.0], device=asset.device).repeat(env.num_envs, 1)
+    vec_W_yB = math_utils.quat_rotate(q_W_baselink, y_axis)
+    vec_S_yB = vec_W_yB.clone()
+    vec_S_yB[:, 2] = 0.0
+    vec_S_sacrum_proj_norm = torch.nn.functional.normalize(vec_S_yB, dim=1)
+    err_signed = torch.sum(vec_S_com_to_support * vec_S_sacrum_proj_norm, dim=1)
+    threshold = 0.0052 / 2.0
+    baseline_offset = torch.exp(-sigma * torch.square(torch.tensor(threshold, device=asset.device)))
+    reward = torch.exp(-sigma * torch.square(err_signed)) - baseline_offset
 
-    forward_reward = delta_x - nowhere_penalty_weight
+    phase = get_phase(env).squeeze(-1)
+    phase_mask = (phase > 0.0).float()
+    
+    print("com reward", reward*phase_mask)
+    print("err_signed", err_signed)
 
-    env.extras["prev_base_x"].copy_(current_base_x)
-
-    return forward_reward
+    return reward * phase_mask

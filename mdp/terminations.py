@@ -28,24 +28,7 @@ def base_height_out_of_manual_limit(
     asset_cfg: SceneEntityCfg,
     bounds: Tuple[float, float],
 ) -> torch.Tensor:
-    """
-    Terminate when the specified body/bodies' world Z height are outside [low, high].
-
-    Parameters
-    ----------
-    env : ManagerBasedRLEnv
-        The vectorized RL environment.
-    asset_cfg : SceneEntityCfg
-        Scene entity config specifying which asset/body names to check.
-        Example: SceneEntityCfg("robot", body_names=["base_link"])
-    bounds : (low, high)
-        Height bounds in meters.
-
-    Returns
-    -------
-    torch.Tensor (num_envs,) bool
-        True where termination should occur.
-    """
+    
     low, high = bounds
     asset = env.scene[asset_cfg.name]
     # Resolve body indices for all envs

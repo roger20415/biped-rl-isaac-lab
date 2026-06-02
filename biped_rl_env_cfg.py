@@ -204,14 +204,20 @@ class RewardsCfg:
     # TODO: modify reward weights
     alive = RewTerm(func=mdp.is_alive, weight=1.0)
     terminating = RewTerm(func=mdp.is_terminated, weight=-2.0)
+    exact_com_tracking = RewTerm(
+        func=mdp.com_error_reward, 
+        weight=2.0,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sigma": 50000.0  
+        }
+    )
 
 
 @configclass
 class TerminationsCfg:
 
-    # (1) Time out
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
-    # (2) Base height out of bounds
     base_height_limit = DoneTerm(
         func=mdp.base_height_out_of_manual_limit,
         params={

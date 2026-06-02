@@ -125,20 +125,20 @@ class BipedRlEnv(ManagerBasedRLEnv):
                 rows.append(" ".join(f"{v:.{precision}f}" for v in chunk))
             return "\n".join(rows)
 
-        print("Env 0 Policy Obs Partitions:")
-        print("S(t-2):")
-        print(_format_rows(s_t2.tolist(), row_size=5))
-        print("S(t-1):")
-        print(_format_rows(s_t1.tolist(), row_size=5))
-        print("S(t):")
-        print(_format_rows(s_t.tolist(), row_size=5))
-        print("A(t-2):")
-        print(_format_rows(a_t2.tolist(), row_size=5))
-        print("A(t-1):")
-        print(_format_rows(a_t1.tolist(), row_size=5))
-        print("phase")
-        print(f"{policy_obs[-1]:.3f}")
-        print("\n")
+        # print("Env 0 Policy Obs Partitions:")
+        # print("S(t-2):")
+        # print(_format_rows(s_t2.tolist(), row_size=5))
+        # print("S(t-1):")
+        # print(_format_rows(s_t1.tolist(), row_size=5))
+        # print("S(t):")
+        # print(_format_rows(s_t.tolist(), row_size=5))
+        # print("A(t-2):")
+        # print(_format_rows(a_t2.tolist(), row_size=5))
+        # print("A(t-1):")
+        # print(_format_rows(a_t1.tolist(), row_size=5))
+        # print("phase")
+        # print(f"{policy_obs[-1]:.3f}")
+        # print("\n")
 
     def _print_policy_action(self, action: torch.Tensor) -> None:
 
@@ -155,9 +155,9 @@ class BipedRlEnv(ManagerBasedRLEnv):
                 rows.append(" ".join(f"{v:.{precision}f}" for v in chunk))
             return "\n".join(rows)
 
-        print("Env 0 Action:")
-        print(_format_rows(a_t.tolist(), row_size=5))
-        print("\n")
+        # print("Env 0 Action:")
+        # print(_format_rows(a_t.tolist(), row_size=5))
+        # print("\n")
 
     def _update_state_history_normal(self, current_state: torch.Tensor, dones: torch.Tensor) -> None:
         
