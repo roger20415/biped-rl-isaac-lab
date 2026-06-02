@@ -204,12 +204,20 @@ class RewardsCfg:
     # TODO: modify reward weights
     alive = RewTerm(func=mdp.is_alive, weight=0.1)
     terminating = RewTerm(func=mdp.is_terminated, weight=-10.0)
-    exact_com_tracking = RewTerm(
+    com_tracking = RewTerm(
         func=mdp.com_error_reward, 
         weight=2.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
             "sigma": 50000.0  
+        }
+    )
+    upright = RewTerm(
+        func=mdp.base_upright_reward,
+        weight=0.5,
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "sigma": 1000000.0
         }
     )
 

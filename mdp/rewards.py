@@ -71,5 +71,26 @@ def com_error_reward(
     reward = torch.exp(-sigma * torch.square(err_signed))
     phase = get_phase(env).squeeze(-1)
     phase_mask = (phase > 0.0).float()
+    
+    print(f"COM tracking reward:", reward*phase_mask)
+    return reward * phase_mask
 
+def base_upright_reward(
+    env: ManagerBasedRLEnv, 
+    asset_cfg: SceneEntityCfg, 
+    sigma: float = 40.0
+) -> torch.Tensor:
+    asset = env.scene[asset_cfg.name]
+    phase = get_phase(env).squeeze(-1)
+    phase_mask = (phase <= 0.25).float()
+
+    baselink_id, _ = asset.find_bodies("base_link")
+    q_W_baselink = asset.data.body_quat_w[:, baselink_id[0], :]
+    z_axis = torch.tensor([0.0, 0.0, 1.0], device=asset.device).repeat(env.num_envs, 1)
+    base_up_W = math_utils.quat_rotate(q_W_baselink, z_axis)
+    upright_dot = base_up_W[:, 2]
+    error = 1.0 - upright_dot
+    reward = torch.exp(-sigma * error)
+
+    print (f"baselink contorl reward:", reward*phase_mask)
     return reward * phase_mask
