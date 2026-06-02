@@ -23,3 +23,8 @@ policy_kwargs:
 vf_coef: 1.0
 max_grad_norm: 1.0
 device: "cuda:0"
+
+# VecNormalize Env
+normalize_input: False
+normalize_value: True
+clip_obs: 100.0

@@ -18,11 +18,13 @@ from isaaclab.envs import ManagerBasedRLEnv
 from .config import Config
 from .observations import get_phase
 
+
 def com_error_reward(
     env: ManagerBasedRLEnv, 
     asset_cfg: SceneEntityCfg, 
     sigma: float = 50000.0  # TODO
 ) -> torch.Tensor:
+
     asset = env.scene[asset_cfg.name]
 
     body_names = [
@@ -66,14 +68,8 @@ def com_error_reward(
     vec_S_yB[:, 2] = 0.0
     vec_S_sacrum_proj_norm = torch.nn.functional.normalize(vec_S_yB, dim=1)
     err_signed = torch.sum(vec_S_com_to_support * vec_S_sacrum_proj_norm, dim=1)
-    threshold = 0.0052 / 2.0
-    baseline_offset = torch.exp(-sigma * torch.square(torch.tensor(threshold, device=asset.device)))
-    reward = torch.exp(-sigma * torch.square(err_signed)) - baseline_offset
-
+    reward = torch.exp(-sigma * torch.square(err_signed))
     phase = get_phase(env).squeeze(-1)
     phase_mask = (phase > 0.0).float()
-    
-    print("com reward", reward*phase_mask)
-    print("err_signed", err_signed)
 
     return reward * phase_mask

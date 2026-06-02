@@ -97,9 +97,6 @@ from isaaclab_tasks.utils.hydra import hydra_task_config
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
-# custom imports
-from isaaclab_tasks.manager_based.biped_rl.bc.preprocess_cfg import PreprocessCfg
-
 MLP_HEAD_WEIGHTS_PATH = "./bc/model/bc_actor_head_weights.pth"
 MLP_BODY_WEIGHTS_PATH = "./bc/model/bc_actor_body_weights.pth"
 
@@ -197,7 +194,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"Normalizing input, {norm_args=}")
         env = VecNormalize(
             env,
-            training=False,
+            training=True,
             norm_obs=norm_args["normalize_input"],
             norm_reward=norm_args.get("normalize_value", False),
             clip_obs=norm_args.get("clip_obs", 100.0),

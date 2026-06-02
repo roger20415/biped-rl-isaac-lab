@@ -175,6 +175,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
+    # VecNormalize wrapper
     # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
@@ -184,15 +185,31 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if key in agent_cfg:
             norm_args[key] = agent_cfg.pop(key)
 
-    if norm_args and norm_args.get("normalize_input"):
-        print(f"Normalizing input, {norm_args=}")
+    is_norm_obs = norm_args.get("normalize_input", False)
+    is_norm_reward = norm_args.get("normalize_value", False)
+    clip_obs_val = norm_args.get("clip_obs", 100.0)
+    gamma_val = agent_cfg.get("gamma", 0.99)
+
+    vec_norm_path = None
+    if args_cli.checkpoint is not None:
+        checkpoint_dir = os.path.dirname(args_cli.checkpoint)
+        vec_norm_path = os.path.join(checkpoint_dir, "model_vecnormalize.pkl")
+
+    if vec_norm_path and os.path.exists(vec_norm_path):
+        print(f"[INFO] 找到環境正規化紀錄，從 {vec_norm_path} 載入")
+        env = VecNormalize.load(vec_norm_path, env)
+        env.training = True
+        env.norm_obs = is_norm_obs
+        env.norm_reward = is_norm_reward
+    else:
+        print("[INFO] 未找到正規化紀錄，建立全新的 VecNormalize")
         env = VecNormalize(
             env,
             training=True,
-            norm_obs=norm_args["normalize_input"],
-            norm_reward=norm_args.get("normalize_value", False),
-            clip_obs=norm_args.get("clip_obs", 100.0),
-            gamma=agent_cfg["gamma"],
+            norm_obs=is_norm_obs,
+            norm_reward=is_norm_reward,
+            clip_obs=clip_obs_val,
+            gamma=gamma_val,
             clip_reward=np.inf,
         )
 
