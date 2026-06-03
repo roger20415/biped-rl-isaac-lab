@@ -224,6 +224,10 @@ class RewardsCfg:
         func=mdp.action_rate_penalty,
         weight=-1000.0
     )
+    action_l2_penalty = RewTerm(
+        func=mdp.action_l2_penalty,
+        weight=-1.0
+    )
 
 
 @configclass

@@ -71,8 +71,7 @@ def com_error_reward(
     reward = torch.exp(-sigma * torch.square(err_signed))
     phase = get_phase(env).squeeze(-1)
     phase_mask = (phase > 0.0).float()
-    
-    print(f"COM tracking reward:", reward*phase_mask)
+
     return reward * phase_mask
 
 def base_upright_reward(
@@ -92,7 +91,6 @@ def base_upright_reward(
     error = 1.0 - upright_dot
     reward = torch.exp(-sigma * error)
 
-    print (f"baselink contorl reward:", reward*phase_mask)
     return reward * phase_mask
 
 def action_rate_penalty(
@@ -102,7 +100,13 @@ def action_rate_penalty(
     action = env.action_manager.action
     prev_action = env.action_manager.prev_action
     penalty = torch.sum(torch.square(action - prev_action), dim=1)
-    
-    print("penalty:", penalty*-1000)
 
+    return penalty
+
+def action_l2_penalty(
+    env: ManagerBasedRLEnv, 
+) -> torch.Tensor:
+    
+    action = env.action_manager.action
+    penalty = torch.sum(torch.square(action), dim=1)
     return penalty
