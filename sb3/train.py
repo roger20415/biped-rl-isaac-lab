@@ -2,8 +2,6 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-# python sb3/train.py --task=Isaac-Biped-Rl-v0 --headless
-# python sb3/inject_bc_train.py --task=Isaac-Biped-Rl-v0 --headless
 
 
 """Script to train RL agent with Stable Baselines3."""
@@ -233,7 +231,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 param.requires_grad = True
 
     # callbacks for agent
-    checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
+    checkpoint_callback = CheckpointCallback(save_freq=TrainingConfig.SAVE_FREQUENCY, save_path=log_dir, name_prefix="model", verbose=2)
     callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
 
     # train the agent

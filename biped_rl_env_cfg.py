@@ -258,7 +258,7 @@ class TerminationsCfg:
 @configclass
 class BipedRlEnvCfg(ManagerBasedRLEnvCfg):
 
-    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=1, env_spacing=0.2)
+    scene: BipedRlSceneCfg = BipedRlSceneCfg(num_envs=500, env_spacing=0.2)
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     events: EventCfg = EventCfg()

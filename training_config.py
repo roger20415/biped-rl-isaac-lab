@@ -8,3 +8,5 @@ class TrainingConfig:
 
     MLP_HEAD_WEIGHTS_PATH = "./bc/model/bc_actor_head_weights.pth"
     MLP_BODY_WEIGHTS_PATH = "./bc/model/bc_actor_body_weights.pth"
+
+    SAVE_FREQUENCY = 200
