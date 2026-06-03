@@ -220,6 +220,10 @@ class RewardsCfg:
             "sigma": 1000000.0
         }
     )
+    action_rate_penalty = RewTerm(
+        func=mdp.action_rate_penalty,
+        weight=-1000.0
+    )
 
 
 @configclass

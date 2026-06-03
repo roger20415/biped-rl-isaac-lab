@@ -94,3 +94,15 @@ def base_upright_reward(
 
     print (f"baselink contorl reward:", reward*phase_mask)
     return reward * phase_mask
+
+def action_rate_penalty(
+    env: ManagerBasedRLEnv,
+) -> torch.Tensor:
+
+    action = env.action_manager.action
+    prev_action = env.action_manager.prev_action
+    penalty = torch.sum(torch.square(action - prev_action), dim=1)
+    
+    print("penalty:", penalty*-1000)
+
+    return penalty
