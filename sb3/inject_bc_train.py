@@ -189,6 +189,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         if key in agent_cfg:
             norm_args[key] = agent_cfg.pop(key)
 
+    # TODO there should not be norm_args.get("normalize_input")
     if norm_args and norm_args.get("normalize_input"):
         print(f"Normalizing input, {norm_args=}")
         env = VecNormalize(

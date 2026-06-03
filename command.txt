@@ -1,6 +1,7 @@
 > python sb3/inject_bc_train.py --task=Isaac-Biped-Rl-v0 --headless
 
 > python sb3/train.py --task=Isaac-Biped-Rl-v0 --headless
---checkpoint logs/sb3/Isaac-Biped-Rl-v0/2026-06-02_08-54-05/model.zip
+--checkpoint logs/sb3/Isaac-Biped-Rl-v0/2026-06-03_07-43-38/model.zip
+--use_last_checkpoint
 
 > tensorboard --logdir logs/sb3/Isaac-Biped-Rl-v0 --bind_all --port 6006
