@@ -190,19 +190,19 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     clip_obs_val = norm_args.get("clip_obs", 100.0)
     gamma_val = agent_cfg.get("gamma", 0.99)
 
-    vec_norm_path = None
+    env_path = None
     if args_cli.checkpoint is not None:
         checkpoint_dir = os.path.dirname(args_cli.checkpoint)
-        vec_norm_path = os.path.join(checkpoint_dir, "model_vecnormalize.pkl")
+        env_path = os.path.join(checkpoint_dir, "model_vecnormalize.pkl")
 
-    if vec_norm_path and os.path.exists(vec_norm_path):
-        print(f"[INFO] 找到環境正規化紀錄，從 {vec_norm_path} 載入")
-        env = VecNormalize.load(vec_norm_path, env)
+    if env_path and os.path.exists(env_path):
+        print(f"\033[1;36m[INFO] Found saved VecNormalize at {env_path}, loading.\033[0m")
+        env = VecNormalize.load(env_path, env)
         env.training = True
         env.norm_obs = is_norm_obs
         env.norm_reward = is_norm_reward
     else:
-        print("[INFO] 未找到正規化紀錄，建立全新的 VecNormalize")
+        print("\033[1;33m[WARNING] No saved VecNormalize found; creating a new VecNormalize.\033[0m")
         env = VecNormalize(
             env,
             training=True,
@@ -217,6 +217,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
     if args_cli.checkpoint is not None:
         agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
+        print("\n" + "="*65)
+        print(f"\033[1;32m[SUCCESS] Resumed training successfully! Model weights replaced from checkpoint.\033[0m")
+        print(f"\033[1;32m[INFO] Loaded from: {args_cli.checkpoint}\033[0m")
+        print("="*65 + "\n")
 
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)
