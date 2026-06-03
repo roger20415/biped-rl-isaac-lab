@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 else:
     ManagerBasedRLEnv = Any
 
+from .config import Config
 from isaaclab_tasks.manager_based.biped_rl.training_config import TrainingConfig
 
 GetterFn = Callable[[ManagerBasedRLEnv, SceneEntityCfg], torch.Tensor]
@@ -70,7 +71,7 @@ def get_norm_vector(env: ManagerBasedRLEnv,
     std_t.masked_fill_(std_t < eps, 1.0)
     return (x - mean_t) / std_t
 
-def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshold: float = 0.0014) -> torch.Tensor:
+def has_foot_contact(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, threshold: float = Config.FOOT_CONTACT_THRESHOLD) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
     body_ids = asset_cfg.body_ids
     z = asset.data.body_pos_w[:, body_ids, 2]

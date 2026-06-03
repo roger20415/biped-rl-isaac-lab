@@ -99,6 +99,7 @@ from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import hydra_task_config
+from isaaclab_tasks.manager_based.biped_rl.training_config import TrainingConfig
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
@@ -221,6 +222,15 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
         print(f"\033[1;32m[SUCCESS] Resumed training successfully! Model weights replaced from checkpoint.\033[0m")
         print(f"\033[1;32m[INFO] Loaded from: {args_cli.checkpoint}\033[0m")
         print("="*65 + "\n")
+    
+    if TrainingConfig.FREEZE_ACTOR:
+        print("\033[1;33m[WARNING] Starting critic warm-up: actor network is frozen\033[0m")
+        for name, param in agent.policy.named_parameters():
+            if "action_net" in name or "policy_net" in name or "log_std" in name:
+                param.requires_grad = False
+            
+            elif "value_net" in name:
+                param.requires_grad = True
 
     # callbacks for agent
     checkpoint_callback = CheckpointCallback(save_freq=1000, save_path=log_dir, name_prefix="model", verbose=2)

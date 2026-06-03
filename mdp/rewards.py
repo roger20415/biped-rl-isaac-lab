@@ -93,6 +93,26 @@ def base_upright_reward(
 
     return reward * phase_mask
 
+def foot_lift_penalty(
+    env: ManagerBasedRLEnv, 
+    asset_cfg: SceneEntityCfg,
+    threshold: float = Config.FOOT_CONTACT_THRESHOLD
+) -> torch.Tensor:
+    
+    asset = env.scene[asset_cfg.name]
+
+    body_ids, _ = asset.find_bodies(["l_foot_1", "r_foot_1"])
+    foot_z_height = asset.data.body_pos_w[:, body_ids, 2]
+
+    height_error = foot_z_height - threshold
+    lift_violation = torch.clamp(height_error, min=0.0)
+    total_violation = torch.sum(lift_violation, dim=1)
+    phase = get_phase(env).squeeze(-1)
+    phase_mask = (phase <= 0.25).float()
+    penalty = total_violation
+    
+    return penalty * phase_mask
+
 def action_rate_penalty(
     env: ManagerBasedRLEnv,
 ) -> torch.Tensor:

@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 """Script to train RL agent with Stable Baselines3."""
 """Launch Isaac Sim Simulator first."""
 
@@ -14,6 +13,8 @@ import sys
 from pathlib import Path
 
 from isaaclab.app import AppLauncher
+
+
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Baselines3.")
@@ -95,11 +96,9 @@ from isaaclab.utils.io import dump_pickle, dump_yaml
 from isaaclab_rl.sb3 import Sb3VecEnvWrapper, process_sb3_cfg
 from isaaclab_tasks.utils.hydra import hydra_task_config
 
+from isaaclab_tasks.manager_based.biped_rl.training_config import TrainingConfig
+
 # PLACEHOLDER: Extension template (do not remove this comment)
-
-MLP_HEAD_WEIGHTS_PATH = "./bc/model/bc_actor_head_weights.pth"
-MLP_BODY_WEIGHTS_PATH = "./bc/model/bc_actor_body_weights.pth"
-
 
 def _validate_state_dict_finite(state_dict: dict, label: str) -> None:
     invalid_keys = []
@@ -207,12 +206,23 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     print(agent.policy)
     if args_cli.checkpoint is not None:
         agent = agent.load(args_cli.checkpoint, env, print_system_info=True)
+
+    if TrainingConfig.FREEZE_ACTOR:
+        print("\033[1;33m[WARNING] Starting critic warm-up: actor network is frozen\033[0m")
+        
+        for name, param in agent.policy.named_parameters():
+            if "action_net" in name or "policy_net" in name or "log_std" in name:
+                param.requires_grad = False
+            
+            elif "value_net" in name:
+                param.requires_grad = True
+
     try:
         actor_body_net = agent.policy.mlp_extractor.policy_net
         actor_head_net = agent.policy.action_net
 
-        body_weights = torch.load(MLP_BODY_WEIGHTS_PATH, map_location=agent.device)
-        head_weights = torch.load(MLP_HEAD_WEIGHTS_PATH, map_location=agent.device)
+        body_weights = torch.load(TrainingConfig.MLP_BODY_WEIGHTS_PATH, map_location=agent.device)
+        head_weights = torch.load(TrainingConfig.MLP_HEAD_WEIGHTS_PATH, map_location=agent.device)
 
         _validate_state_dict_finite(body_weights, "BC body weights")
         _validate_state_dict_finite(head_weights, "BC head weights")

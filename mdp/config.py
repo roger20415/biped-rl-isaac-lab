@@ -59,9 +59,4 @@ class Config:
     SS_SWING_FOOT_HEIGHT: float = 0.0011  # in meters
     SWING_TRAJECTORY_MID_HEIGHT: float = 0.0015  # in meters
 
-    SACRUM_MAX_NOISE_RAD: float = 0.0008
-    HIP_MAX_NOISE_RAD: float = 0.0025
-    THIGH_MAX_NOISE_RAD: float = 0.0008
-    CALF_MAX_NOISE_RAD: float = 0.0008
-    ANKLE_MAX_NOISE_RAD: float = 0.0008
-    FOOT_MAX_NOISE_RAD: float = 0.0025
+    FOOT_CONTACT_THRESHOLD: float = 0.0014  # in meters, must be consistent with Isaac Sim
