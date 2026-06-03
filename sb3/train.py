@@ -190,14 +190,14 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     clip_obs_val = norm_args.get("clip_obs", 100.0)
     gamma_val = agent_cfg.get("gamma", 0.99)
 
-    env_path = None
+    vec_norm_path = None
     if args_cli.checkpoint is not None:
         checkpoint_dir = os.path.dirname(args_cli.checkpoint)
-        env_path = os.path.join(checkpoint_dir, "model_vecnormalize.pkl")
+        vec_norm_path = os.path.join(checkpoint_dir, "model_vecnormalize.pkl")
 
-    if env_path and os.path.exists(env_path):
-        print(f"\033[1;36m[INFO] Found saved VecNormalize at {env_path}, loading.\033[0m")
-        env = VecNormalize.load(env_path, env)
+    if vec_norm_path and os.path.exists(vec_norm_path):
+        print(f"\033[1;36m[INFO] Found saved VecNormalize at {vec_norm_path}, loading.\033[0m")
+        env = VecNormalize.load(vec_norm_path, env)
         env.training = True
         env.norm_obs = is_norm_obs
         env.norm_reward = is_norm_reward
