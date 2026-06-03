@@ -56,14 +56,14 @@ def com_error_reward(
     p_W_r_foot = asset.data.body_pos_w[:, r_foot_id[0], :]
     q_W_r_foot = asset.data.body_quat_w[:, r_foot_id[0], :]
     x_axis = torch.tensor([1.0, 0.0, 0.0], device=asset.device).repeat(env.num_envs, 1)
-    xRFOOT_W_norm = math_utils.quat_rotate(q_W_r_foot, x_axis)
+    xRFOOT_W_norm = math_utils.quat_apply(q_W_r_foot, x_axis)
     xRFOOT_W_norm = torch.nn.functional.normalize(xRFOOT_W_norm, dim=1)
     p_S_support = p_W_r_foot - Config.FOOT_LINK_X_SEMI_LENGTH * xRFOOT_W_norm
     p_S_support[:, 2] = 0.0
     vec_S_com_to_support = p_S_support - p_S_biped_com
     q_W_baselink = asset.data.body_quat_w[:, baselink_id[0], :]
     y_axis = torch.tensor([0.0, 1.0, 0.0], device=asset.device).repeat(env.num_envs, 1)
-    vec_W_yB = math_utils.quat_rotate(q_W_baselink, y_axis)
+    vec_W_yB = math_utils.quat_apply(q_W_baselink, y_axis)
     vec_S_yB = vec_W_yB.clone()
     vec_S_yB[:, 2] = 0.0
     vec_S_sacrum_proj_norm = torch.nn.functional.normalize(vec_S_yB, dim=1)
@@ -86,7 +86,7 @@ def base_upright_reward(
     baselink_id, _ = asset.find_bodies("base_link")
     q_W_baselink = asset.data.body_quat_w[:, baselink_id[0], :]
     z_axis = torch.tensor([0.0, 0.0, 1.0], device=asset.device).repeat(env.num_envs, 1)
-    base_up_W = math_utils.quat_rotate(q_W_baselink, z_axis)
+    base_up_W = math_utils.quat_apply(q_W_baselink, z_axis)
     upright_dot = base_up_W[:, 2]
     error = 1.0 - upright_dot
     reward = torch.exp(-sigma * error)
