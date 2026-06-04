@@ -76,6 +76,7 @@ import gymnasium as gym
 import numpy as np
 import os
 import random
+import torch
 from datetime import datetime
 
 import omni
@@ -218,11 +219,21 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # create agent from stable baselines
     agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
     if args_cli.checkpoint is not None:
-        agent = agent.load(args_cli.checkpoint, env, tensorboard_log=log_dir,  print_system_info=True)
-        print("\n" + "="*65)
-        print(f"\033[1;32m[SUCCESS] Resumed training successfully! Model weights replaced from checkpoint.\033[0m")
-        print(f"\033[1;32m[INFO] Loaded from: {args_cli.checkpoint}\033[0m")
-        print("="*65 + "\n")
+        use_checkpoint_cfg = getattr(TrainingConfig, "USE_CHECKPOINT_AGENT_CFG", True)
+        if use_checkpoint_cfg:          
+            agent = agent.load(args_cli.checkpoint, env, tensorboard_log=log_dir, print_system_info=True)
+            
+        else:
+            print("\n" + "-"*65)
+            print("\033[1;33m[INFO] USE_CHECKPOINT_AGENT_CFG: False\033[0m")
+            print("\033[1;33m[INFO] Using current global agent_cfg. Only loading weights from checkpoint...\033[0m")
+            print("-"*65 + "\n")
+            agent.set_parameters(args_cli.checkpoint, exact_match=False)
+            if "policy_kwargs" in agent_cfg and "log_std_init" in agent_cfg["policy_kwargs"]:
+                target_log_std = agent_cfg["policy_kwargs"]["log_std_init"]
+                with torch.no_grad():
+                    agent.policy.log_std.fill_(target_log_std)
+                print(f"\033[1;33m[WARNING] Forcefully reset log_std to {target_log_std} to match global config.\033[0m\n")
     
     if TrainingConfig.FREEZE_ACTOR:
         print("\033[1;33m[WARNING] Starting critic warm-up: actor network is frozen\033[0m")

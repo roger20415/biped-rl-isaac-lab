@@ -8,8 +8,9 @@ batch_size: 3200
 gae_lambda: 0.95
 gamma: 0.99
 n_epochs: 20
-ent_coef: 0.0005 #0.01 # NOTE
-learning_rate: !!float 1e-3
+ent_coef: 0.0001 #0.01 # NOTE
+learning_rate: !!float 1e-6
+target_kl: 0.01
 clip_range: !!float 0.2
 policy_kwargs:
   activation_fn: 'nn.ELU'
@@ -18,7 +19,7 @@ policy_kwargs:
     pi: [64, 64]  # policy
     vf: [128, 128] # critic
   squash_output: False
-  log_std_init: -20.0 # NOTE # key，if use bc to rl，set log_std_init small 
+  log_std_init: -3.0 # NOTE # key，if use bc to rl，set log_std_init small 
                 
 vf_coef: 1.0
 max_grad_norm: 1.0

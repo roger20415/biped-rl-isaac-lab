@@ -10,3 +10,4 @@ class TrainingConfig:
     MLP_BODY_WEIGHTS_PATH = "./bc/model/bc_actor_body_weights.pth"
 
     SAVE_FREQUENCY = 200
+    USE_CHECKPOINT_AGENT_CFG: bool = False
