@@ -217,7 +217,7 @@ class RewardsCfg:
         weight=0.5,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "sigma": 1000000.0
+            "sigma": 70.0
         }
     )
     foot_lift = RewTerm(
@@ -225,12 +225,13 @@ class RewardsCfg:
         weight=-800.0,
         params={
             "asset_cfg": SceneEntityCfg("robot"),
-            "threshold": FOOT_CONTACT_THRESHOLD
+            "threshold": FOOT_CONTACT_THRESHOLD,
+            "max_limit": 3.0 / abs(-800.0)
         }
     )
     action_rate_penalty = RewTerm(
         func=mdp.action_rate_penalty,
-        weight=-1000.0
+        weight=-300.0
     )
     action_l2_penalty = RewTerm(
         func=mdp.action_l2_penalty,

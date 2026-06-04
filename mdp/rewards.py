@@ -68,11 +68,15 @@ def com_error_reward(
     vec_S_yB[:, 2] = 0.0
     vec_S_sacrum_proj_norm = torch.nn.functional.normalize(vec_S_yB, dim=1)
     err_signed = torch.sum(vec_S_com_to_support * vec_S_sacrum_proj_norm, dim=1)
-    reward = torch.exp(-sigma * torch.square(err_signed))
+    reward_val = torch.exp(-sigma * torch.square(err_signed))
     phase = get_phase(env).squeeze(-1)
     phase_mask = (phase > 0.0).float()
+    
+    final_reward = reward_val * phase_mask
+    #actual_reward = final_reward[0] * 2.0
+    #print(f"[Debug] Env 0 COM Tracking Reward: {actual_reward.item():.4f}")
 
-    return reward * phase_mask
+    return final_reward
 
 def base_upright_reward(
     env: ManagerBasedRLEnv, 
@@ -89,29 +93,37 @@ def base_upright_reward(
     base_up_W = math_utils.quat_apply(q_W_baselink, z_axis)
     upright_dot = base_up_W[:, 2]
     error = 1.0 - upright_dot
-    reward = torch.exp(-sigma * error)
+    reward_val = torch.exp(-sigma * error)
 
-    return reward * phase_mask
+    final_reward = reward_val * phase_mask
+    #actual_reward = final_reward[0] * 0.5
+    ##print(f"[Debug] Env 0 Base Upright Reward: {actual_reward.item():.4f}")
+
+    return final_reward
 
 def foot_lift_penalty(
-    env: ManagerBasedRLEnv, 
-    asset_cfg: SceneEntityCfg,
-    threshold: float = Config.FOOT_CONTACT_THRESHOLD
+    env,
+    asset_cfg, 
+    threshold: float = 0.02,
+    max_limit: float = 3.0 / 800.0
 ) -> torch.Tensor:
     
     asset = env.scene[asset_cfg.name]
-
     body_ids, _ = asset.find_bodies(["l_foot_1", "r_foot_1"])
     foot_z_height = asset.data.body_pos_w[:, body_ids, 2]
-
     height_error = foot_z_height - threshold
     lift_violation = torch.clamp(height_error, min=0.0)
     total_violation = torch.sum(lift_violation, dim=1)
+    total_violation = torch.clamp(total_violation, max=max_limit)
     phase = get_phase(env).squeeze(-1)
     phase_mask = (phase <= 0.25).float()
     penalty = total_violation
     
-    return penalty * phase_mask
+    final_penalty = penalty * phase_mask
+    # actual_reward = final_penalty[0] * -800.0
+    # print(f"[Debug] Env 0 Foot Lift Penalty: {actual_reward.item():.4f}")
+    
+    return final_penalty
 
 def action_rate_penalty(
     env: ManagerBasedRLEnv,
@@ -121,6 +133,9 @@ def action_rate_penalty(
     prev_action = env.action_manager.prev_action
     penalty = torch.sum(torch.square(action - prev_action), dim=1)
 
+    # actual_reward = penalty[0] * -300.0
+    # print(f"[Debug] Env 0 Action Rate Penalty: {actual_reward.item():.4f}")
+
     return penalty
 
 def action_l2_penalty(
@@ -129,4 +144,8 @@ def action_l2_penalty(
     
     action = env.action_manager.action
     penalty = torch.sum(torch.square(action), dim=1)
+    
+    # actual_reward = penalty[0] * -1.0
+    # print(f"[Debug] Env 0 Action L2 Penalty: {actual_reward.item():.4f}")
+    
     return penalty
