@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 
-"""Script to train RL agent with Stable Baselines3 using automated curriculum."""
+"""Script to train RL agent with Stable Baselines3."""
 
 """Launch Isaac Sim Simulator first."""
 
@@ -106,13 +106,6 @@ from isaaclab_tasks.manager_based.biped_rl.training_config import TrainingConfig
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with stable-baselines agent."""
-    curriculum_schedule = [
-        {"log_std": -10.0, "timesteps": 1_000_000},
-        {"log_std": -7.0, "timesteps": 2_000_000},
-        {"log_std": -5.0, "timesteps": 2_500_000},
-    ]
-    # =========================================================
-
     # randomly sample a seed if seed = -1
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)
@@ -120,43 +113,57 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
+    # max iterations for training
+    if args_cli.max_iterations is not None:
+        agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
 
     # set the environment seed
+    # note: certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg["seed"]
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
     # directory for logging into
-    run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_Curriculum")
+    run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
+    # The Ray Tune workflow extracts experiment name using the logging line below, hence, do not change it (see PR #2346, comment-2819298849)
+    print(f"Exact experiment name requested from command line: {run_info}")
     log_dir = os.path.join(log_root_path, run_info)
-    
+    # dump the configuration into log-directory
     dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
     dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
 
+    # save command used to run the script
     command = " ".join(sys.orig_argv)
     (Path(log_dir) / "command.txt").write_text(command)
 
+    # post-process agent configuration
     agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
+    # read configurations about the agent-training
     policy_arch = agent_cfg.pop("policy")
-    
-    # 移除 n_timesteps 的讀取，因為我們將使用 curriculum_schedule 裡的步數
-    if "n_timesteps" in agent_cfg:
-        agent_cfg.pop("n_timesteps")
+    n_timesteps = agent_cfg.pop("n_timesteps")
 
+    # set the IO descriptors export flag if requested
     if isinstance(env_cfg, ManagerBasedRLEnvCfg):
         env_cfg.export_io_descriptors = args_cli.export_io_descriptors
+    else:
+        omni.log.warn(
+            "IO descriptors are only supported for manager based RL environments. No IO descriptors will be exported."
+        )
 
+    # set the log directory for the environment (works for all environment types)
     env_cfg.log_dir = log_dir
 
     # create isaac environment
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
+    # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):
         env = multi_agent_to_single_agent(env)
 
+    # wrap for video recording
     if args_cli.video:
         video_kwargs = {
             "video_folder": os.path.join(log_dir, "videos", "train"),
@@ -164,8 +171,12 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             "video_length": args_cli.video_length,
             "disable_logger": True,
         }
+        print("[INFO] Recording videos during training.")
+        print_dict(video_kwargs, nesting=4)
         env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
+    # VecNormalize wrapper
+    # wrap around environment for stable baselines
     env = Sb3VecEnvWrapper(env, fast_variant=not args_cli.keep_all_info)
 
     norm_keys = {"normalize_input", "normalize_value", "clip_obs"}
@@ -179,7 +190,9 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     clip_obs_val = norm_args.get("clip_obs", 100.0)
     gamma_val = agent_cfg.get("gamma", 0.99)
 
+    # TODO there should not be norm_args.get("normalize_input")
     if norm_args and norm_args.get("normalize_input"):
+        print(f"Normalizing input, {norm_args=}")
         vec_norm_path = None
         if args_cli.checkpoint is not None:
             checkpoint_dir = os.path.dirname(args_cli.checkpoint)
@@ -203,88 +216,83 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 clip_reward=np.inf,
             )
 
-    # 建立基礎 Agent
+    # create agent from stable baselines
     agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
-    
-    # 載入初始 Checkpoint
     if args_cli.checkpoint is not None:
         use_checkpoint_cfg = getattr(TrainingConfig, "USE_CHECKPOINT_AGENT_CFG", True)
         if use_checkpoint_cfg:          
             agent = agent.load(args_cli.checkpoint, env, tensorboard_log=log_dir, print_system_info=True)
+            
         else:
             print("\n" + "-"*65)
             print("\033[1;33m[INFO] USE_CHECKPOINT_AGENT_CFG: False\033[0m")
             print("\033[1;33m[INFO] Using current global agent_cfg. Only loading weights from checkpoint...\033[0m")
             print("-"*65 + "\n")
             agent.set_parameters(args_cli.checkpoint, exact_match=False)
-
-    # === 自動化階段訓練迴圈 ===
-    for phase_idx, phase in enumerate(curriculum_schedule):
-        target_log_std = phase["log_std"]
-        phase_timesteps = phase["timesteps"]
-        
-        print("\n" + "="*70)
-        print(f"\033[1;32m[自動排程] 開始執行階段 {phase_idx + 1} / {len(curriculum_schedule)}\033[0m")
-        print(f"\033[1;32m[自動排程] 目標 log_std_init: {target_log_std}\033[0m")
-        print(f"\033[1;32m[自動排程] 訓練步數 (Timesteps): {phase_timesteps}\033[0m")
-        print("="*70 + "\n")
-
-        # 1. 根據階段強制覆寫 log_std
-        with torch.no_grad():
-            agent.policy.log_std.fill_(target_log_std)
-        
-        # 2. 確保 Actor 在每個階段都被正確凍結 (Critic Warm-up)
-        if TrainingConfig.FREEZE_ACTOR:
-            print("\033[1;33m[INFO] 確保 Actor 網路權重已被凍結 (Critic Warm-up)\033[0m")
-            for name, param in agent.policy.named_parameters():
-                if "action_net" in name or "policy_net" in name or "log_std" in name:
-                    param.requires_grad = False
-                elif "value_net" in name:
-                    param.requires_grad = True
-
-        # 3. 建立這個階段專屬的儲存子目錄，避免 Checkpoint 覆蓋混淆
-        phase_dir = os.path.join(log_dir, f"phase_{phase_idx+1}_std_{target_log_std}")
-        os.makedirs(phase_dir, exist_ok=True)
-        
-        checkpoint_callback = CheckpointCallback(
-            save_freq=TrainingConfig.SAVE_FREQUENCY, 
-            save_path=phase_dir, 
-            name_prefix=f"model_p{phase_idx+1}", 
-            verbose=2
-        )
-        callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
-
-        # 4. 執行訓練
-        # 注意：只有第一個階段 reset_num_timesteps=True，後面的階段設為 False
-        # 這樣 TensorBoard 的曲線才會從左到右連續畫下去，不會斷掉歸零
-        reset_timesteps = (phase_idx == 0)
-        
-        with contextlib.suppress(KeyboardInterrupt):
-            agent.learn(
-                total_timesteps=phase_timesteps,
-                callback=callbacks,
-                progress_bar=True,
-                log_interval=None,
-                reset_num_timesteps=reset_timesteps
-            )
-            
-        # 5. 儲存該階段完成後的最終權重與環境正規化參數
-        agent.save(os.path.join(phase_dir, "model_final"))
-        if isinstance(env, VecNormalize):
-            env.save(os.path.join(phase_dir, "model_vecnormalize.pkl"))
-            
-        print(f"\033[1;36m[自動排程] 階段 {phase_idx + 1} 完成！已儲存至 {phase_dir}\033[0m")
-
-    # 全局訓練結束
-    print("\n\033[1;32m[自動排程] 所有自動化訓練階段皆已執行完畢！\033[0m")
+            if "policy_kwargs" in agent_cfg and "log_std_init" in agent_cfg["policy_kwargs"]:
+                target_log_std = agent_cfg["policy_kwargs"]["log_std_init"]
+                with torch.no_grad():
+                    agent.policy.log_std.fill_(target_log_std)
+                print(f"\033[1;33m[WARNING] Forcefully reset log_std to {target_log_std} to match global config.\033[0m\n")
     
-    # 儲存最終的 Global 模型供未來使用
+    if TrainingConfig.FREEZE_ACTOR:
+        print("\033[1;33m[WARNING] Starting critic warm-up: actor network is frozen\033[0m")
+        for name, param in agent.policy.named_parameters():
+            if "action_net" in name or "policy_net" in name or "log_std" in name:
+                param.requires_grad = False
+            
+            elif "value_net" in name:
+                param.requires_grad = True
+
+    print("\033[1;36m[INFO] Separating Actor and Critic learning rates...\033[0m")
+    actor_params = (
+        list(agent.policy.mlp_extractor.policy_net.parameters()) + 
+        list(agent.policy.action_net.parameters())
+    )
+    if hasattr(agent.policy, 'log_std') and isinstance(agent.policy.log_std, torch.nn.Parameter):
+        actor_params.append(agent.policy.log_std)
+    critic_params = (
+        list(agent.policy.mlp_extractor.value_net.parameters()) + 
+        list(agent.policy.value_net.parameters())
+    )
+    active_actor_params = [p for p in actor_params if p.requires_grad]
+    active_critic_params = [p for p in critic_params if p.requires_grad]
+
+    param_groups = []
+    if active_actor_params:
+        param_groups.append({'params': active_actor_params, 'lr': TrainingConfig.ACTOR_LR})
+    if active_critic_params:
+        param_groups.append({'params': active_critic_params, 'lr': TrainingConfig.CRITIC_LR})
+
+    agent.policy.optimizer = torch.optim.Adam(param_groups, eps=1e-5)
+    print(f"\033[1;36m[INFO] Optimizer successfully replaced. Parameter groups: {len(param_groups)}\033[0m")
+
+    agent._update_learning_rate = lambda *args, **kwargs: None
+
+    # callbacks for agent
+    checkpoint_callback = CheckpointCallback(save_freq=TrainingConfig.SAVE_FREQUENCY, save_path=log_dir, name_prefix="model", verbose=2)
+    callbacks = [checkpoint_callback, LogEveryNTimesteps(n_steps=args_cli.log_interval)]
+
+    # train the agent
+    with contextlib.suppress(KeyboardInterrupt):
+        agent.learn(
+            total_timesteps=n_timesteps,
+            callback=callbacks,
+            progress_bar=True,
+            log_interval=None,
+        )
+    # save the final model
     agent.save(os.path.join(log_dir, "model"))
+    print("Saving to:")
+    print(os.path.join(log_dir, "model.zip"))
+
     if isinstance(env, VecNormalize):
+        print("Saving normalization")
         env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
 
     # close the simulator
     env.close()
+
 
 if __name__ == "__main__":
     # run the main function

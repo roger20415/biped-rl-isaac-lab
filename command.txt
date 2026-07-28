@@ -4,3 +4,5 @@
 --checkpoint logs/sb3/Isaac-Biped-Rl-v0/2026-06-03_07-43-38/model.zip
 
 > tensorboard --logdir /workspace/isaaclab/source/isaaclab_tasks/isaaclab_tasks/manager_based/biped_rl/logs/sb3/Isaac-Biped-Rl-v0 --bind_all --port 6006
+
+python sb3/train_indep_lr.py --task=Isaac-Biped-Rl-v0 --headless --checkpoint logs/sb3/Isaac-Biped-Rl-v0/critic-warm-4.5-15m-best/2026-06-28_05-09-34_Curriculum_BC/model.zip

@@ -202,8 +202,8 @@ class EventCfg:
 class RewardsCfg:
 
     # TODO: modify reward weights
-    alive = RewTerm(func=mdp.is_alive, weight=0.1)
-    terminating = RewTerm(func=mdp.is_terminated, weight=-10.0)
+    alive = RewTerm(func=mdp.is_alive, weight=1.5)
+    terminating = RewTerm(func=mdp.is_terminated, weight=-80.0)
     com_tracking = RewTerm(
         func=mdp.com_error_reward, 
         weight=2.0,

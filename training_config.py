@@ -9,5 +9,8 @@ class TrainingConfig:
     MLP_HEAD_WEIGHTS_PATH = "./bc/model/bc_actor_head_weights.pth"
     MLP_BODY_WEIGHTS_PATH = "./bc/model/bc_actor_body_weights.pth"
 
-    SAVE_FREQUENCY = 200
+    SAVE_FREQUENCY = 1000
     USE_CHECKPOINT_AGENT_CFG: bool = False
+    
+    ACTOR_LR = 1e-6
+    CRITIC_LR = 1e-3

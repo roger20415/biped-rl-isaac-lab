@@ -3,9 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
-"""Script to train RL agent with Stable Baselines3 using automated curriculum."""
-
+"""Script to train RL agent with Stable Baselines3 using automated curriculum and BC injection."""
 """Launch Isaac Sim Simulator first."""
 
 import argparse
@@ -16,7 +14,7 @@ from pathlib import Path
 
 from isaaclab.app import AppLauncher
 
-# add argparse arguments
+# 加入 argparse 參數設定
 parser = argparse.ArgumentParser(description="Train an RL agent with Stable-Baselines3.")
 parser.add_argument("--video", action="store_true", default=False, help="Record videos during training.")
 parser.add_argument("--video_length", type=int, default=200, help="Length of the recorded video (in steps).")
@@ -37,18 +35,18 @@ parser.add_argument(
     default=False,
     help="Use a slower SB3 wrapper but keep all the extra training info.",
 )
-# append AppLauncher cli args
+# 附加 AppLauncher cli 參數
 AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+# 解析參數
 args_cli, hydra_args = parser.parse_known_args()
-# always enable cameras to record video
+# 若開啟錄影，強制啟用攝影機
 if args_cli.video:
     args_cli.enable_cameras = True
 
-# clear out sys.argv for Hydra
+# 清空 sys.argv 供 Hydra 使用
 sys.argv = [sys.argv[0]] + hydra_args
 
-# launch omniverse app
+# 啟動 omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
 
@@ -67,7 +65,7 @@ def cleanup_pbar(*args):
     raise KeyboardInterrupt
 
 
-# disable KeyboardInterrupt override
+# 覆寫 KeyboardInterrupt 的預設行為
 signal.signal(signal.SIGINT, cleanup_pbar)
 
 """Rest everything follows."""
@@ -102,31 +100,41 @@ from isaaclab_tasks.manager_based.biped_rl.training_config import TrainingConfig
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
+def _validate_state_dict_finite(state_dict: dict, label: str) -> None:
+    """
+    Validates if all tensors in a state dictionary are finite.
+    """
+    invalid_keys = []
+    for key, value in state_dict.items():
+        if torch.is_tensor(value) and not torch.isfinite(value).all():
+            invalid_keys.append(key)
+    if invalid_keys:
+        raise ValueError(f"{label} contains non-finite tensors: {invalid_keys[:5]}")
 
 @hydra_task_config(args_cli.task, args_cli.agent)
 def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agent_cfg: dict):
     """Train with stable-baselines agent."""
+    
     curriculum_schedule = [
-        {"log_std": -10.0, "timesteps": 1_000_000},
-        {"log_std": -7.0, "timesteps": 2_000_000},
-        {"log_std": -5.0, "timesteps": 2_500_000},
+        {"log_std": -4.5, "timesteps": 1_000_000},
+        {"log_std": -4.7, "timesteps": 1_000_000},
+        {"log_std": -5.0, "timesteps": 1_000_000}
     ]
-    # =========================================================
 
-    # randomly sample a seed if seed = -1
+    # 如果 seed = -1，隨機抽樣一個種子
     if args_cli.seed == -1:
         args_cli.seed = random.randint(0, 10000)
 
-    # override configurations with non-hydra CLI arguments
+    # 覆蓋 CLI 傳入的設定
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
     agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg["seed"]
 
-    # set the environment seed
+    # 設定環境種子
     env_cfg.seed = agent_cfg["seed"]
     env_cfg.sim.device = args_cli.device if args_cli.device is not None else env_cfg.sim.device
 
-    # directory for logging into
-    run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_Curriculum")
+    # 設定 Log 儲存目錄
+    run_info = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_Curriculum_BC")
     log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     log_dir = os.path.join(log_root_path, run_info)
@@ -142,7 +150,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     agent_cfg = process_sb3_cfg(agent_cfg, env_cfg.scene.num_envs)
     policy_arch = agent_cfg.pop("policy")
     
-    # 移除 n_timesteps 的讀取，因為我們將使用 curriculum_schedule 裡的步數
+    # 移除設定檔中的 n_timesteps，統一由 curriculum_schedule 接管
     if "n_timesteps" in agent_cfg:
         agent_cfg.pop("n_timesteps")
 
@@ -151,7 +159,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
 
     env_cfg.log_dir = log_dir
 
-    # create isaac environment
+    # 建立 Isaac 環境
     env = gym.make(args_cli.task, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 
     if isinstance(env.unwrapped, DirectMARLEnv):
@@ -179,6 +187,7 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     clip_obs_val = norm_args.get("clip_obs", 100.0)
     gamma_val = agent_cfg.get("gamma", 0.99)
 
+    # 處理 VecNormalize
     if norm_args and norm_args.get("normalize_input"):
         vec_norm_path = None
         if args_cli.checkpoint is not None:
@@ -203,10 +212,10 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
                 clip_reward=np.inf,
             )
 
-    # 建立基礎 Agent
+    # 建立基礎 PPO Agent
     agent = PPO(policy_arch, env, verbose=1, tensorboard_log=log_dir, **agent_cfg)
     
-    # 載入初始 Checkpoint
+    # 載入初始 Checkpoint (若有提供)
     if args_cli.checkpoint is not None:
         use_checkpoint_cfg = getattr(TrainingConfig, "USE_CHECKPOINT_AGENT_CFG", True)
         if use_checkpoint_cfg:          
@@ -217,6 +226,36 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
             print("\033[1;33m[INFO] Using current global agent_cfg. Only loading weights from checkpoint...\033[0m")
             print("-"*65 + "\n")
             agent.set_parameters(args_cli.checkpoint, exact_match=False)
+
+    # === 載入行為仿效 (BC) 權重至 Actor 網路 ===
+    try:
+        actor_body_net = agent.policy.mlp_extractor.policy_net
+        actor_head_net = agent.policy.action_net
+
+        body_weights = torch.load(TrainingConfig.MLP_BODY_WEIGHTS_PATH, map_location=agent.device)
+        head_weights = torch.load(TrainingConfig.MLP_HEAD_WEIGHTS_PATH, map_location=agent.device)
+
+        _validate_state_dict_finite(body_weights, "BC body weights")
+        _validate_state_dict_finite(head_weights, "BC head weights")
+
+        actor_body_net.load_state_dict(body_weights)
+        actor_head_net.load_state_dict(head_weights)
+        print("\033[1;32m[INFO] 成功注入 BC 權重至 Actor 網路！\033[0m")
+    
+    except AttributeError as e:
+        print("==========================================================")
+        print(f" FAILED: AttributeError: {e}")
+        print("   This likely means your agent config YAML file configuration is incorrect.")
+        print("   Please ensure your agent config YAML file is using 'separate networks':")
+        print("   net_arch:")
+        print("     pi: [..., ...]")
+        print("     vf: [..., ...]")
+        print("==========================================================")
+        raise
+    except Exception as e:
+        print(f"--- [ERROR] Inject Behavior cloning pipeline failed: {e} ---")
+        raise
+    # ========================================================
 
     # === 自動化階段訓練迴圈 ===
     for phase_idx, phase in enumerate(curriculum_schedule):
@@ -283,11 +322,11 @@ def main(env_cfg: ManagerBasedRLEnvCfg | DirectRLEnvCfg | DirectMARLEnvCfg, agen
     if isinstance(env, VecNormalize):
         env.save(os.path.join(log_dir, "model_vecnormalize.pkl"))
 
-    # close the simulator
+    # 關閉模擬器
     env.close()
 
 if __name__ == "__main__":
-    # run the main function
+    # 執行 main 函數
     main()
-    # close sim app
+    # 關閉 sim app
     simulation_app.close()
