@@ -19,7 +19,7 @@ policy_kwargs:
     pi: [64, 64]  # policy
     vf: [128, 128] # critic
   squash_output: False
-  log_std_init: -5.0 # NOTE # key，if use bc to rl，set log_std_init small 
+  log_std_init: -5.0 # NOTE # key，if use bc to rl，set log_std_init small
                 
 vf_coef: 1.0
 max_grad_norm: 1.0
